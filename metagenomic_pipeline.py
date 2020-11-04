@@ -184,33 +184,10 @@ if __name__ == "__main__":
         fastq1_filename = os.path.abspath(args.fq1)
         fastq2_filename = os.path.abspath(args.fq2)
 
-    if not os.path.exists(args.cwd+'/'+'assembly') :
-        if not os.path.exists(args.cwd) :
-            sys.exit(cwd+' does not exist')
-        else:
-            cwd = os.path.abspath(args.cwd+'/'+'assembly')
-            print('\n')
-            print('creating the working directory '+cwd)
-            os.mkdir(cwd)
-            os.mkdir(cwd+'/'+'annotations')
-            os.mkdir(cwd+'/'+'bt2')
-            os.mkdir(cwd+'/'+'anvio')
-            os.mkdir(cwd+'/'+'taxonomy')
+    if not os.path.exists(args.cwd) :
+        sys.exit(cwd+' does not exist')
     else:
         cwd = os.path.abspath(args.cwd+'/'+'assembly')
-        if not os.path.exists(cwd+'/'+'annotations') :
-            os.mkdir(cwd+'/'+'annotations')
-
-        if not os.path.exists(cwd+'/'+'bt2') :
-            os.mkdir(cwd+'/'+'bt2')
-
-        if not os.path.exists(cwd+'/'+'anvio') :
-            os.mkdir(cwd+'/'+'anvio')
-
-        if not os.path.exists(cwd+'/'+'taxonomy') :
-            os.mkdir(cwd+'/'+'taxonomy')
-
-
 
     if args.cpu < 1 :
         cpu = 1
@@ -246,18 +223,41 @@ if __name__ == "__main__":
     # megahit 1.2.9 #
     #################
 
-    output_directory = cwd
-    output_prefix = sample
-    contig_filename = cwd+'/'+sample+'.contigs.fa'
+    contig_filename = cwd+'/'+'contigs.fa'
 
     print('\n')
-    print('Performing the assembly using  megahit...')
+    print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
     if not os.path.exists(contig_filename) :
-        cmd = 'megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+output_directory+' --out-prefix '+output_prefix+' --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
+        cmd = 'megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
         print(cmd)
         status = os.system(cmd)
         print(status)
+        if status == 0 :
+            print('creating the working subdirectories '+cwd)
+            os.mkdir(cwd+'/'+'annotations')
+            os.mkdir(cwd+'/'+'bt2')
+            os.mkdir(cwd+'/'+'anvio')
+            os.mkdir(cwd+'/'+'taxonomy')
+        else:
+            sys.exit('something went wrong with megahit, exit')
+        print('\n')
+    else:
+        if not os.path.exists(cwd+'/'+'annotations') :
+            os.mkdir(cwd+'/'+'annotations')
+
+        if not os.path.exists(cwd+'/'+'bt2') :
+            os.mkdir(cwd+'/'+'bt2')
+
+        if not os.path.exists(cwd+'/'+'anvio') :
+            os.mkdir(cwd+'/'+'anvio')
+
+        if not os.path.exists(cwd+'/'+'taxonomy') :
+            os.mkdir(cwd+'/'+'taxonomy')
+
     print('done')
+
+
+
 
 
     ########################
@@ -266,7 +266,7 @@ if __name__ == "__main__":
 
     print('\n')
     print('Renaming the contigs...')
-    renamed_contig_filename = cwd+'/'+sample+'.reformated.contigs.fa'
+    renamed_contig_filename = cwd+'/'+'contigs.renamed.fa'
     if not os.path.exists(renamed_contig_filename) :
         renamingContigs(contig_filename,renamed_contig_filename) # renaming the contigs + checking for funky characters
     print('done')
@@ -276,12 +276,11 @@ if __name__ == "__main__":
     # idba-ud #
     ###########
 
-    print('\n')
-    print('Performing the scaffolding using IDBA-UD...')
-    output_directory = cwd
-    cmd = 'scaffold '+contig_filename+' '+fastq1_filename+' '+fastq2_filename+' -seed_kmer 100 -min_contig 1000 -o '+cwd
-    print(cmd)
-    print('done')
+    # print('\n')
+    # print('Performing the scaffolding using IDBA-UD...')
+    # cmd = 'scaffold '+contig_filename+' '+fastq1_filename+' '+fastq2_filename+' -seed_kmer 100 -min_contig 1000 -o '+cwd
+    # print(cmd)
+    # print('done')
 
 
 
@@ -291,20 +290,19 @@ if __name__ == "__main__":
 
     print('\n')
     print('Performing coverage profiling using bowtie2...')
-    output_directory = cwd+'/'+'bt2'
     basename = os.path.basename(renamed_contig_filename)
-    bam_filename = output_directory+'/'+basename+'.bam'
+    bam_filename = cwd+'/'+'bt2'+'/'+basename+'.bam'
 
     if not os.path.exists(bam_filename) :
         print(bam_filename)
         os.mkdir(output_directory)
 
-        cmd = 'bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+output_directory+'/'+basename
+        cmd = 'bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
         print(cmd)
         status = os.system(cmd)
         print(status)
 
-        cmd = 'bowtie2 -p '+str(cpu)+' -X 1000 -x '+output_directory+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb >'+bam_filename
+        cmd = 'bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb >'+bam_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -336,7 +334,7 @@ if __name__ == "__main__":
     print('\tLength of '+str(k)+'th longuest contig: '+str(length))
     print('\tMedian length of the '+str(k)+' longuest contigs: '+str(statistics.median(liste)))
 
-    contig_filename = cwd+'/'+sample+'.min'+str(length)+'.reformated.contigs.fa'
+    contig_filename = cwd+'/'+'contigs.renamed'+'.min'+str(length)+'.fa'
     if not os.path.exists(contig_filename) :
         output = open(contig_filename,'w')
         for record in SeqIO.parse(renamed_contig_filename,'fasta') :
@@ -364,14 +362,14 @@ if __name__ == "__main__":
 
     print('\n')
     print('Performing the gene prediction using prodigal...')
-    protein_filename = cwd+'/'+sample+'.reformated.proteins.faa'
+    protein_filename = cwd+'/'+'proteins.faa'
     if not os.path.exists(protein_filename) :
         cmd = 'prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -m -p meta >/dev/null 2>/dev/null'
         print(cmd)
         status = os.system(cmd)
         print(status)
 
-    protein_anvio_filename = cwd+'/'+sample+'.reformated.anvio.proteins.faa'
+    protein_anvio_filename = cwd+'/'+'proteins.anvio.tab'
     if not os.path.exists(protein_anvio_filename) :
         parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
     print('done')
@@ -462,6 +460,9 @@ if __name__ == "__main__":
 
     additionalDataTable(annot2data,items_filename,splitList)
     print('done')
+
+
+    sys.exit()
 
 
     ########################
