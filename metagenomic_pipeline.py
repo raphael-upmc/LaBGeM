@@ -39,6 +39,8 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with samtools view, exit')
 
     tmp_filename = bam_filename+'.tmp.shorter.sam'
     output = open(tmp_filename,'w')
@@ -68,12 +70,16 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with samtools sort, exit.')
 
     # creating the index file
     cmd = 'samtools index '+final_bam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with samtools index, exit.')
 
     # removing the two tmp files
     os.remove(tmp_filename)
@@ -300,11 +306,15 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print(status)
+        if not status == 0:
+            sys.exit('something went wrong with bowtie2-build, exit')
 
         cmd = 'bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb >'+bam_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
+        if not status == 0:
+            sys.exit('something went wrong with bowtie2, exit')
 
     print('done')
 
@@ -367,6 +377,8 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print(status)
+        if not status == 0:
+            sys.exit('something went wrong with prodigal, exit')
 
     protein_anvio_filename = cwd+'/'+'proteins.anvio.tab'
     if not os.path.exists(protein_anvio_filename) :
@@ -391,14 +403,15 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
-        if status != 0 :
-            sys.exit()
+        if not status == 0:
+            sys.exit('something went wrong with EukRep.py, exit')
     print('\tdone')
 
     print('done')
 
 
 
+    sys.exit('great, you filled the first part of the pipeline, now run anvio.py')
 
     #########################
     #########################
