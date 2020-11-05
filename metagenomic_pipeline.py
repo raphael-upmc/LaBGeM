@@ -411,7 +411,9 @@ if __name__ == "__main__":
 
 
 
-    sys.exit('great, you filled the first part of the pipeline, now run anvio.py')
+    print('\ngreat, you have completed the first (and longest) part of the pipeline, now let\'s run the anvio\'s commands')
+
+
 
     #########################
     #########################
@@ -419,7 +421,25 @@ if __name__ == "__main__":
     #########################
     #########################
 
+    # activate conda environment #
+    print('\n\n')
+    print('Activating the conda environment...')
 
+    cmd = 'source /env/cns/proj/agc/scratch/conda/miniconda.profile'
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+    if not status == 0:
+        sys.exit('something went wrong with source, exit')
+
+    cmd = 'conda activate anvio-6.2'
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+    if not status == 0:
+        sys.exit('something went wrong with conda activate anvio-6.2, exit')
+
+    print('done')
 
 
 
@@ -434,13 +454,25 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print(status)
+        if not status == 0:
+            sys.exit('something went wrong with anvi-gen-contigs-database, exit')
 
         cmd = 'anvi-run-hmms -c '+contig_db_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
+        if not status == 0:
+            sys.exit('something went wrong with anvi-run-hmms, exit')
+
     print('done')
 
+
+
+    sys.exit()
+
+    ##############################################
+    # Importing the items data tables into ANVIO #
+    ##############################################
 
     # anvi-[import|export|show|delete]-misc-data # import annotations
     print('\n')
@@ -451,6 +483,8 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with anvi-export-table, exit')
 
     splitList = set()
     contig2split = defaultdict(set)
@@ -474,7 +508,7 @@ if __name__ == "__main__":
     print('done')
 
 
-    sys.exit()
+
 
 
     ########################
@@ -494,19 +528,29 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with anvi-get-sequences-for-gene-calls, exit')
 
         cmd = 'kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with kaiju, exit')
 
         cmd = 'kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with kaiju-addTaxonNames, exit')
+
     print('done')
 
     cmd = 'anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
+    if not status == 0:
+        sys.exit('something went wrong with anvi-import-taxonomy-for-genes, exit')
+
     print(cmd)
 
 
@@ -519,12 +563,17 @@ if __name__ == "__main__":
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with anvi-profile, exit')
 
         print('\n\n')
         cmd = 'anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with anvi-import-misc-data, exit')
+
 
     #####################
     # anvio interactive #
