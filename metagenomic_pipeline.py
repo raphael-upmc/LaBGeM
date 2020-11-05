@@ -223,12 +223,12 @@ if __name__ == "__main__":
     # megahit 1.2.9 #
     #################
 
-    contig_filename = cwd+'/'+'contigs.fa'
+    contig_filename = cwd+'/'+'megahit.contigs.fa'
 
     print('\n')
     print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
     if not os.path.exists(contig_filename) :
-        cmd = 'megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
+        cmd = 'megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -266,7 +266,7 @@ if __name__ == "__main__":
 
     print('\n')
     print('Renaming the contigs...')
-    renamed_contig_filename = cwd+'/'+'contigs.renamed.fa'
+    renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
     if not os.path.exists(renamed_contig_filename) :
         renamingContigs(contig_filename,renamed_contig_filename) # renaming the contigs + checking for funky characters
     print('done')
@@ -295,7 +295,6 @@ if __name__ == "__main__":
 
     if not os.path.exists(bam_filename) :
         print(bam_filename)
-        os.mkdir(output_directory)
 
         cmd = 'bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
         print(cmd)
@@ -334,7 +333,7 @@ if __name__ == "__main__":
     print('\tLength of '+str(k)+'th longuest contig: '+str(length))
     print('\tMedian length of the '+str(k)+' longuest contigs: '+str(statistics.median(liste)))
 
-    contig_filename = cwd+'/'+'contigs.renamed'+'.min'+str(length)+'.fa'
+    contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.min'+str(length)+'.fa'
     if not os.path.exists(contig_filename) :
         output = open(contig_filename,'w')
         for record in SeqIO.parse(renamed_contig_filename,'fasta') :
