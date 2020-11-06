@@ -65,6 +65,10 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
     output.close()
     file.close()
 
+    # removing the tmp file
+    os.remove(tmp_sam_filename)
+
+
     # creating and sorting a bam file 
     cmd = 'samtools view -Sb '+' '+tmp_filename+' | samtools sort -@ '+str(cpu)+' -o'+final_bam_filename
     print(cmd)
@@ -72,6 +76,9 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
     print('status: '+str(status)+'\n')
     if not status == 0 :
         sys.exit('something went wrong with samtools sort, exit.')
+
+    # removing the tmp file
+    os.remove(tmp_filename)
 
     # creating the index file
     cmd = 'samtools index '+final_bam_filename
@@ -81,9 +88,6 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
     if not status == 0 :
         sys.exit('something went wrong with samtools index, exit.')
 
-    # removing the two tmp files
-    os.remove(tmp_filename)
-    os.remove(tmp_sam_filename)
 
 
 def parsingProdigal(protein_filename,output_filename,contig_filename) :
@@ -117,7 +121,6 @@ def parsingProdigal(protein_filename,output_filename,contig_filename) :
             strand = 'r'
         line = orf+'\t'+scaffold+'\t'+start+'\t'+end+'\t'+strand+'\t'+partial+'\t'+'prodigal'+'\t'+'2.6.3'+'\t'+str(record.seq)
         output.write(line+'\n')
-    file.close()
     output.close()
 
 
@@ -170,17 +173,16 @@ if __name__ == "__main__":
     parser.add_argument('-fq1', help='the path of the first FASTQ_FILENAME that contains the reads')
     parser.add_argument('-fq2', help='the path of the second FASTQ_FILENAME that contains the reads')
     parser.add_argument('-cwd', help='the path to the working directory where the assembly folder will be created')
+    parser.add_argument('-project', help='the name of the project that will be prefixed in the contig names')
+    parser.add_argument('-sample', help='the name of the project that will be prefixed in the contig names')
     parser.add_argument('-cpu',type=int,default=1,help='number of CPUs used by hhblits (default: 1)')
     parser.add_argument('-k',type=int,default=25000,help='number of contigs to keep for ANVIO (default: 25000)')
     args = parser.parse_args()
 
-    sample = 'test_20201017'
-    project = 'phaeoexplorer'
-
     # checking arguments
 
-    if args.fq1 == None or args.fq2 == None or args.cwd == None :
-        sys.exit('fq1, fq2 and cwd are mandatory parameters')
+    if args.fq1 == None or args.fq2 == None or args.cwd == None or args.project == None or args.sample == None :
+        sys.exit('fq1, fq2, cwd, project and sample are mandatory parameters')
 
     if not os.path.exists(args.fq1) or not os.path.exists(args.fq2) :
         sys.exit(args.fq1+' or '+args.fq2+' does not exist, exit')
@@ -205,11 +207,17 @@ if __name__ == "__main__":
     else:
         k = args.k
 
+
+    sample = args.sample
+    project = args.project
+
     print('\n')
     print('##############')
     print('# parameters #')
     print('##############')
     print()
+    print('Project name: '+project)
+    print('Sample name: '+sample)
     print('Working directory: '+cwd)
     print('Fastq1: '+fastq1_filename)
     print('Fastq2: '+fastq2_filename)
@@ -261,8 +269,6 @@ if __name__ == "__main__":
             os.mkdir(cwd+'/'+'taxonomy')
 
     print('done')
-
-
 
 
 
@@ -399,7 +405,7 @@ if __name__ == "__main__":
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
     if not os.path.exists(eukrep_euk_filename) :
-        cmd = 'EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names' 
+        cmd = 'EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
@@ -421,27 +427,6 @@ if __name__ == "__main__":
     #########################
     #########################
 
-    # activate conda environment #
-    print('\n\n')
-    print('Activating the conda environment...')
-
-    cmd = 'source /env/cns/proj/agc/scratch/conda/miniconda.profile'
-    print(cmd)
-    status = os.system(cmd)
-    print(status)
-    if not status == 0:
-        sys.exit('something went wrong with source, exit')
-
-    cmd = 'conda activate anvio-6.2'
-    print(cmd)
-    status = os.system(cmd)
-    print(status)
-    if not status == 0:
-        sys.exit('something went wrong with conda activate anvio-6.2, exit')
-
-    print('done')
-
-
 
     #######################################
     # Creating an anvi’o contigs database # http://merenlab.org/2016/06/22/anvio-tutorial-v2/#creating-an-anvio-contigs-database
@@ -450,14 +435,14 @@ if __name__ == "__main__":
     print('\n\nCreating the contig.db file')
     contig_db_filename = cwd+'/'+'contigs.db'
     if not os.path.exists(contig_db_filename) :
-        cmd = 'anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'An example contigs database\''+' --external-gene-calls '+protein_anvio_filename
+        cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'An example contigs database\''+' --external-gene-calls '+protein_anvio_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
         if not status == 0:
             sys.exit('something went wrong with anvi-gen-contigs-database, exit')
 
-        cmd = 'anvi-run-hmms -c '+contig_db_filename
+        cmd = 'source activate anvio-6.2 && anvi-run-hmms -c '+contig_db_filename+' -T '+str(cpu)
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -468,8 +453,6 @@ if __name__ == "__main__":
 
 
 
-    sys.exit()
-
     ##############################################
     # Importing the items data tables into ANVIO #
     ##############################################
@@ -479,7 +462,7 @@ if __name__ == "__main__":
     print('Importing the annotations into ANVIO...')
 
     if not os.path.exists(cwd+'/'+'genes_in_splits.txt') :
-        cmd = 'anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'genes_in_splits.txt'
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'genes_in_splits.txt'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
@@ -524,7 +507,7 @@ if __name__ == "__main__":
 
     if not os.path.exists(kaijuTaxon_filename) :
 
-        cmd = 'anvi-get-sequences-for-gene-calls -c '+contig_db_filename+' -o '+gene_call_filename
+        cmd = 'source activate anvio-6.2 && anvi-get-sequences-for-gene-calls -c '+contig_db_filename+' -o '+gene_call_filename
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
@@ -547,7 +530,7 @@ if __name__ == "__main__":
 
     print('done')
 
-    cmd = 'anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
+    cmd = 'source activate anvio-6.2 && anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
     if not status == 0:
         sys.exit('something went wrong with anvi-import-taxonomy-for-genes, exit')
 
@@ -559,7 +542,7 @@ if __name__ == "__main__":
     ##########################
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
     if not os.path.exists(profile_filename) :
-        cmd = 'anvi-profile -i '+final_bam_filename+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --output-dir '+cwd+'/'+'anvio'+' --cluster-contigs --overwrite-output-destinations'
+        cmd = 'source activate anvio-6.2 && anvi-profile -i '+final_bam_filename+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --output-dir '+cwd+'/'+'anvio'+' --cluster-contigs --overwrite-output-destinations -T '+str(cpu)
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
@@ -567,7 +550,7 @@ if __name__ == "__main__":
             sys.exit('something went wrong with anvi-profile, exit')
 
         print('\n\n')
-        cmd = 'anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
+        cmd = 'source activate anvio-6.2 && anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
@@ -579,6 +562,10 @@ if __name__ == "__main__":
     # anvio interactive #
     #####################
 
+
+    print('\nLaunch the ANVIO web interface please run the following commands:\n')
+    cmd = 'conda activate anvio-6.2'
+    print(cmd)
     cmd = 'anvi-interactive --server-only -p '+profile_filename+' -c '+contig_db_filename
     print(cmd)
     sys.exit()
