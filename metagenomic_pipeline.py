@@ -531,10 +531,12 @@ if __name__ == "__main__":
     print('done')
 
     cmd = 'source activate anvio-6.2 && anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
+    print(cmd)
+    status = os.system(cmd)
+    print('status :'+str(status))
     if not status == 0:
         sys.exit('something went wrong with anvi-import-taxonomy-for-genes, exit')
 
-    print(cmd)
 
 
     ##########################
