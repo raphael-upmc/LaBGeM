@@ -11,7 +11,7 @@ import argparse
 # /env/cns/proj/proj_BSI (projet phaeoexplorer)
 
 
-def renamingContigs(contig_filename,renamed_contig_filename) :
+def renamingContigs(contig_filename,renamed_contig_filename,project,sample) :
     output = open(renamed_contig_filename,'w')
     file = open(contig_filename,'r')
     for line in file :
@@ -280,7 +280,7 @@ if __name__ == "__main__":
     print('Renaming the contigs...')
     renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
     if not os.path.exists(renamed_contig_filename) :
-        renamingContigs(contig_filename,renamed_contig_filename) # renaming the contigs + checking for funky characters
+        renamingContigs(contig_filename,renamed_contig_filename,project,sample) # renaming the contigs + checking for funky characters
     print('done')
 
 
