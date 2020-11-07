@@ -327,7 +327,7 @@ if __name__ == "__main__":
     #######################################
 
     print('\n')
-    print('Selecting the '+str(k)+' longest contigs...')
+    print('Selecting the '+str(k)+' longest contigs and the contigs longer than 1000bp...')
 
     lengthList = list()
     for record in SeqIO.parse(renamed_contig_filename,'fasta') :
@@ -336,32 +336,39 @@ if __name__ == "__main__":
     print('\tTotal number of contigs: '+str(len(lengthList)))
     print('\tMedian length: '+str(statistics.median(lengthList)))
 
+    contigSet = set()
     liste = list()
-    cpt = 0
+    cpt = 1
     for length in sorted(lengthList,reverse=True) :
-        cpt += 1
-        liste.append(length)
-
-        if length < 1000 :
+        #print(str(cpt)+'\t'+str(length))
+        if length < 1000 or cpt > k :
             break
+        else:
+            cpt += 1
+            liste.append(length)
 
-        if cpt > k :
-            break
+    cpt = cpt - 1 
+    length = sorted(lengthList,reverse=True)[cpt - 1]
 
-    print('\tLength of '+str(k)+'th longuest contig: '+str(length))
-    print('\tMedian length of the '+str(k)+' longuest contigs: '+str(statistics.median(liste)))
+    print('\tLength of '+str(cpt)+'th longuest contig: '+str(length))
+    print('\tMedian length of the '+str(cpt)+' longuest contigs: '+str(statistics.median(liste)))
+
 
     contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.min'+str(length)+'.fa'
     if not os.path.exists(contig_filename) :
         output = open(contig_filename,'w')
         for record in SeqIO.parse(renamed_contig_filename,'fasta') :
-            if len(record) > length :
+            if len(record) >= length :
                 SeqIO.write(record,output,'fasta')
+                liste.append(len(record))
             else:
                 continue
         output.close()
+
+
     print('done')
 
+    sys.exit()
 
     ####################################################
     # filtering out, indexing and sorting the filename #
