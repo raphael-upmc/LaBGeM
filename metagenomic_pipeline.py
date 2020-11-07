@@ -8,9 +8,6 @@ import argparse
 
 
 
-# /env/cns/proj/proj_BSI (projet phaeoexplorer)
-
-
 def renamingContigs(contig_filename,renamed_contig_filename,project,sample) :
     output = open(renamed_contig_filename,'w')
     file = open(contig_filename,'r')
@@ -344,8 +341,13 @@ if __name__ == "__main__":
     for length in sorted(lengthList,reverse=True) :
         cpt += 1
         liste.append(length)
+
+        if length < 1000 :
+            break
+
         if cpt > k :
             break
+
     print('\tLength of '+str(k)+'th longuest contig: '+str(length))
     print('\tMedian length of the '+str(k)+' longuest contigs: '+str(statistics.median(liste)))
 
@@ -528,7 +530,7 @@ if __name__ == "__main__":
         if not status == 0:
             sys.exit('something went wrong with kaiju-addTaxonNames, exit')
 
-    print('done')
+
 
     cmd = 'source activate anvio-6.2 && anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
     print(cmd)
@@ -537,7 +539,7 @@ if __name__ == "__main__":
     if not status == 0:
         sys.exit('something went wrong with anvi-import-taxonomy-for-genes, exit')
 
-
+    print('done')
 
     ##########################
     # Creating the profile DB #
