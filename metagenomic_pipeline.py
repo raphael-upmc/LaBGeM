@@ -368,16 +368,17 @@ if __name__ == "__main__":
 
     print('done')
 
-    sys.exit()
 
     ####################################################
     # filtering out, indexing and sorting the filename #
     ####################################################
 
+    print('\n')
+    print('Filtering out, indexing and sorting the filename...')
     final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.bam'
     if not os.path.exists(final_bam_filename) :
         extractingBam(bam_filename,contig_filename,final_bam_filename,cpu)
-
+    print('done')
 
 
     ############
@@ -414,7 +415,7 @@ if __name__ == "__main__":
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
     if not os.path.exists(eukrep_euk_filename) :
-        cmd = 'EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
+        cmd = '/usr/bin/python3 /env/export/home/rmeheust/.local/lib/python3.6/site-packages/EukRep/EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
@@ -567,6 +568,7 @@ if __name__ == "__main__":
         print('status: '+str(status))
         if not status == 0:
             sys.exit('something went wrong with anvi-import-misc-data, exit')
+
 
 
     #####################
