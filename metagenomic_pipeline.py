@@ -7,6 +7,58 @@ from collections import defaultdict
 import argparse
 
 
+def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
+
+
+    # running kaiju
+    print()
+    print('\tRunning Kaiju...')
+    kaiju_filename = cwd+'/'+'taxonomy'+'/'+'all_kaiju.output'
+    kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'all_kaiju-addTaxonNames.output'
+
+    cmd = 'kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
+    print('\t'+cmd)
+    status = os.system(cmd)
+    print('\t'+'status :'+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with kaiju, exit')
+
+    cmd = 'kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
+    print('\t'+cmd)
+    status = os.system(cmd)
+    print('\t'+'status :'+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with kaiju-addTaxonNames, exit')
+
+    kaijuContigSet = set()
+    file = open(kaijuTaxon_filename,'r')
+    for line in file :
+        line  = line.rstrip()
+        liste = line.split('\t')
+        if liste[0] == 'C' :
+            lineage = liste[-1]
+            lineageList = lineage.split(';')
+            domain = lineageList[0].strip()
+            if domain == 'Eukaryota' :
+                kaijuContigSet.add(liste[1])
+            else:
+                continue
+        else:
+            continue
+    file.close()
+    print('\t'+'Number of eukaryotic contigs according to Kaiju: '+str(len(kaijuContigSet)))
+
+    eukRepContigSet = set()
+    file = open(eukrep_euk_filename,'r')
+    for line in file :
+        contig = line.rstrip()
+        eukRepContigSet.add(contig)
+    file.close()
+    print('\t'+'Number of eukaryotic contigs according to EukRep: '+str(len(eukRepContigSet)))
+    print('\t'+'Number of eukaryotic contigs according to bot Kaiju and EukRep: '+str(len(kaijuContigSet.intersection(eukRepContigSet))))
+
+    return kaijuContigSet.intersection(eukRepContigSet)
+
 
 def renamingContigs(contig_filename,renamed_contig_filename,project,sample) :
     output = open(renamed_contig_filename,'w')
@@ -174,6 +226,7 @@ if __name__ == "__main__":
     parser.add_argument('-sample', help='the name of the project that will be prefixed in the contig names')
     parser.add_argument('-cpu',type=int,default=1,help='number of CPUs used by hhblits (default: 1)')
     parser.add_argument('-k',type=int,default=25000,help='number of contigs to keep for ANVIO (default: 25000)')
+    parser.add_argument('-remove-euk',type=bool,default=False,help='remove the contigs assigned to euk by both kaiju and EukRep')
     args = parser.parse_args()
 
     # checking arguments
@@ -220,6 +273,7 @@ if __name__ == "__main__":
     print('Fastq2: '+fastq2_filename)
     print('Number of CPUs: '+str(cpu))
     print('Number of contigs to consider for ANVIO: '+str(k))
+    print('Removing eukaryotic contigs: '+str(args.remove_euk))
 
 
 
@@ -322,64 +376,6 @@ if __name__ == "__main__":
     print('done')
 
 
-    #######################################
-    # selecting the 25000 longest contigs #
-    #######################################
-
-    print('\n')
-    print('Selecting the '+str(k)+' longest contigs and the contigs longer than 1000bp...')
-
-    lengthList = list()
-    for record in SeqIO.parse(renamed_contig_filename,'fasta') :
-        lengthList.append(len(record))
-
-    print('\tTotal number of contigs: '+str(len(lengthList)))
-    print('\tMedian length: '+str(statistics.median(lengthList)))
-
-    contigSet = set()
-    liste = list()
-    cpt = 1
-    for length in sorted(lengthList,reverse=True) :
-        #print(str(cpt)+'\t'+str(length))
-        if length < 1000 or cpt > k :
-            break
-        else:
-            cpt += 1
-            liste.append(length)
-
-    cpt = cpt - 1 
-    length = sorted(lengthList,reverse=True)[cpt - 1]
-
-    print('\tLength of '+str(cpt)+'th longuest contig: '+str(length))
-    print('\tMedian length of the '+str(cpt)+' longuest contigs: '+str(statistics.median(liste)))
-
-
-    contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.min'+str(length)+'.fa'
-    if not os.path.exists(contig_filename) :
-        output = open(contig_filename,'w')
-        for record in SeqIO.parse(renamed_contig_filename,'fasta') :
-            if len(record) >= length :
-                SeqIO.write(record,output,'fasta')
-                liste.append(len(record))
-            else:
-                continue
-        output.close()
-
-
-    print('done')
-
-
-    ####################################################
-    # filtering out, indexing and sorting the filename #
-    ####################################################
-
-    print('\n')
-    print('Filtering out, indexing and sorting the filename...')
-    final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.bam'
-    if not os.path.exists(final_bam_filename) :
-        extractingBam(bam_filename,contig_filename,final_bam_filename,cpu)
-    print('done')
-
 
     ############
     # prodigal #
@@ -388,17 +384,14 @@ if __name__ == "__main__":
     print('\n')
     print('Performing the gene prediction using prodigal...')
     protein_filename = cwd+'/'+'proteins.faa'
+    gene_filename = cwd+'/'+'genes.fna'
     if not os.path.exists(protein_filename) :
-        cmd = 'prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -m -p meta >/dev/null 2>/dev/null'
+        cmd = 'prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
         print(cmd)
         status = os.system(cmd)
         print(status)
         if not status == 0:
             sys.exit('something went wrong with prodigal, exit')
-
-    protein_anvio_filename = cwd+'/'+'proteins.anvio.tab'
-    if not os.path.exists(protein_anvio_filename) :
-        parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
     print('done')
 
 
@@ -424,6 +417,99 @@ if __name__ == "__main__":
     print('\tdone')
 
     print('done')
+
+
+
+
+    #############################################
+    # Selecting the contigs to display in ANVIO #
+    #############################################
+
+    print('\n')
+    print('Selecting the '+str(k)+' longest contigs and the contigs longer than 1000bp...')
+
+
+    if args.remove_euk : # removing the euk contigs from the bining step
+        print('\tRemoving eukaryotic contigs')
+        eukContigSet = removingEukContigs(contig_filename,gene_filename,eukrep_euk_filename)
+        print('\tDone')
+    else:
+        eukContigSet = set()
+
+
+    lengthList = list()
+    for record in SeqIO.parse(renamed_contig_filename,'fasta') :
+        if record.id in eukContigSet :
+            continue
+        else :
+            lengthList.append(len(record))
+
+    print('\tTotal number of contigs: '+str(len(lengthList)))
+    print('\tMedian length: '+str(statistics.median(lengthList)))
+
+    contigSet = set()
+    liste = list()
+    cpt = 1
+    for length in sorted(lengthList,reverse=True) :
+        #print(str(cpt)+'\t'+str(length))
+        if length < 1000 or cpt > k :
+            break
+        else:
+            cpt += 1
+            liste.append(length)
+
+    cpt = cpt - 1 
+    length = sorted(lengthList,reverse=True)[cpt - 1]
+
+    print('\tLength of '+str(cpt)+'th longuest contig: '+str(length))
+    print('\tMedian length of the '+str(cpt)+' longuest contigs: '+str(statistics.median(liste)))
+
+    if args.remove_euk :
+        contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.noEuk.min'+str(length)+'.fa'
+    else:
+        contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.min'+str(length)+'.fa'
+    if not os.path.exists(contig_filename) :
+        output = open(contig_filename,'w')
+        for record in SeqIO.parse(renamed_contig_filename,'fasta') :
+            if record.id in eukContigSet :
+                continue
+            else:
+                if len(record) >= length :
+                    SeqIO.write(record,output,'fasta')
+                    liste.append(len(record))
+                else:
+                    continue
+        output.close()
+    print('done')
+
+
+    ####################################################
+    # filtering out, indexing and sorting the filename #
+    ####################################################
+
+    print('\n')
+    print('Filtering out, indexing and sorting the filename...')
+    if args.remove_euk :
+        final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.noEuk.min'+str(length)+'.sorted.bam'
+    else:
+        final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.bam'
+
+    if not os.path.exists(final_bam_filename) :
+        extractingBam(bam_filename,contig_filename,final_bam_filename,cpu)
+    print('done')
+
+
+    ###################################
+    # creating protein file for ANVIO #
+    ###################################
+
+    print('\n')
+    print('Creating the protein file for ANVIO...')
+    protein_anvio_filename = cwd+'/'+'proteins.anvio.tab'
+    if not os.path.exists(protein_anvio_filename) :
+        parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
+    print('done')
+
 
 
 
