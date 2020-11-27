@@ -9,7 +9,6 @@ import argparse
 
 def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
 
-
     # running kaiju
     print()
     print('\tRunning Kaiju...')
@@ -140,6 +139,12 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
     # creating a fake bam to allow the coverage sorting in ANVIO
     os.symlink(final_bam_filename, fake_bam_filename)
     os.symlink(final_bam_filename+'.bai', fake_bam_filename+'.bai')
+
+    bam2name = dict()
+    bam2name[fake_bam_filename] = 'fake'
+    bam2name[final_bam_filename] = 'genuine'
+
+    return bam2name
 
 
 def parsingProdigal(protein_filename,output_filename,contig_filename) :
@@ -305,6 +310,8 @@ if __name__ == "__main__":
             os.mkdir(cwd+'/'+'annotations')
             os.mkdir(cwd+'/'+'bt2')
             os.mkdir(cwd+'/'+'anvio')
+            os.mkdir(cwd+'/'+'anvio'+'/'+'fake')
+            os.mkdir(cwd+'/'+'anvio'+'/'+'genuine')
             os.mkdir(cwd+'/'+'taxonomy')
         else:
             sys.exit('something went wrong with megahit, exit')
@@ -500,7 +507,7 @@ if __name__ == "__main__":
         fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
 
     if not os.path.exists(final_bam_filename) :
-        extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
+        bam2name = extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
     print('done')
 
 
@@ -637,22 +644,45 @@ if __name__ == "__main__":
     print('status :'+str(status))
     if not status == 0:
         sys.exit('something went wrong with anvi-import-taxonomy-for-genes, exit')
-
     print('done')
 
-    ##########################
+
+
+
+
+    ###########################
     # Creating the profile DB #
-    ##########################
+    ###########################
+
+    for bam_filename,name in sorted( bam2name.items() ) :
+        profile_filename = cwd+'/'+'anvio'+'/'+name+'/'+'PROFILE.db'
+        profileList.append(profile_filename)
+        if not os.path.exists(profile_filename) :
+            cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'anvio'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
+            print(cmd)
+            status = os.system(cmd)
+            print('status: '+str(status))
+            if not status == 0:
+                sys.exit('something went wrong with anvi-profile, exit')
+
+
+
+
+
+    ###############
+    # anvio merge #
+    ###############
+
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
     if not os.path.exists(profile_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-profile -i '+final_bam_filename+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --output-dir '+cwd+'/'+'anvio'+' --cluster-contigs --overwrite-output-destinations -T '+str(cpu)
+        cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
         if not status == 0:
-            sys.exit('something went wrong with anvi-profile, exit')
-
+            sys.exit('something went wrong with anvi-merge, exit')
         print('\n\n')
+
         cmd = 'source activate anvio-6.2 && anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
         print(cmd)
         status = os.system(cmd)
@@ -662,10 +692,10 @@ if __name__ == "__main__":
 
 
 
+
     #####################
     # anvio interactive #
     #####################
-
 
     print('\nLaunch the ANVIO web interface please run the following commands:\n')
     cmd = 'conda activate anvio-6.2'
