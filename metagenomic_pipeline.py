@@ -76,7 +76,7 @@ def renamingContigs(contig_filename,renamed_contig_filename,project,sample) :
 
 
 
-def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
+def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu):
     # creating the bed file
     contigSet = set()
     for record in SeqIO.parse(contig_filename,'fasta') :
@@ -137,6 +137,9 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,cpu):
     if not status == 0 :
         sys.exit('something went wrong with samtools index, exit.')
 
+    # creating a fake bam to allow the coverage sorting in ANVIO
+    os.symlink(final_bam_filename, fake_bam_filename)
+    os.symlink(final_bam_filename+'.bai', fake_bam_filename+'.bai')
 
 
 def parsingProdigal(protein_filename,output_filename,contig_filename) :
@@ -408,7 +411,7 @@ if __name__ == "__main__":
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
     if not os.path.exists(eukrep_euk_filename) :
-        cmd = '/usr/bin/python3 /env/export/home/rmeheust/.local/lib/python3.6/site-packages/EukRep/EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
+        cmd = 'EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
@@ -491,11 +494,13 @@ if __name__ == "__main__":
     print('Filtering out, indexing and sorting the filename...')
     if args.remove_euk :
         final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.noEuk.min'+str(length)+'.sorted.bam'
+        fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
     else:
         final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.bam'
+        fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
 
     if not os.path.exists(final_bam_filename) :
-        extractingBam(bam_filename,contig_filename,final_bam_filename,cpu)
+        extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
     print('done')
 
 
