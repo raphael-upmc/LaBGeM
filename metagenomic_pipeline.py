@@ -45,7 +45,7 @@ def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
         else:
             continue
     file.close()
-    print('\t'+'Number of eukaryotic contigs according to Kaiju: '+str(len(kaijuContigSet)))
+    print('\t'+'Number of eukaryotic genes according to Kaiju: '+str(len(kaijuContigSet)))
 
     eukRepContigSet = set()
     file = open(eukrep_euk_filename,'r')
@@ -54,9 +54,9 @@ def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
         eukRepContigSet.add(contig)
     file.close()
     print('\t'+'Number of eukaryotic contigs according to EukRep: '+str(len(eukRepContigSet)))
-    print('\t'+'Number of eukaryotic contigs according to bot Kaiju and EukRep: '+str(len(kaijuContigSet.intersection(eukRepContigSet))))
+    #print('\t'+'Number of eukaryotic contigs according to both Kaiju and EukRep: '+str(len(kaijuContigSet.intersection(eukRepContigSet))))
 
-    return kaijuContigSet.intersection(eukRepContigSet)
+    return eukRepContigSet
 
 
 def renamingContigs(contig_filename,renamed_contig_filename,project,sample) :
@@ -140,11 +140,6 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
     os.symlink(final_bam_filename, fake_bam_filename)
     os.symlink(final_bam_filename+'.bai', fake_bam_filename+'.bai')
 
-    bam2name = dict()
-    bam2name[fake_bam_filename] = 'fake'
-    bam2name[final_bam_filename] = 'genuine'
-
-    return bam2name
 
 
 def parsingProdigal(protein_filename,output_filename,contig_filename) :
@@ -234,7 +229,7 @@ if __name__ == "__main__":
     parser.add_argument('-sample', help='the name of the project that will be prefixed in the contig names')
     parser.add_argument('-cpu',type=int,default=1,help='number of CPUs used by hhblits (default: 1)')
     parser.add_argument('-k',type=int,default=25000,help='number of contigs to keep for ANVIO (default: 25000)')
-    parser.add_argument('-remove-euk',type=bool,default=False,help='remove the contigs assigned to euk by both kaiju and EukRep')
+    parser.add_argument('-remove-euk',action='store_true',default=False,help='remove the contigs assigned to euk by both kaiju and EukRep')
     args = parser.parse_args()
 
     # checking arguments
@@ -309,9 +304,9 @@ if __name__ == "__main__":
             print('creating the working subdirectories '+cwd)
             os.mkdir(cwd+'/'+'annotations')
             os.mkdir(cwd+'/'+'bt2')
-            os.mkdir(cwd+'/'+'anvio')
-            os.mkdir(cwd+'/'+'anvio'+'/'+'fake')
-            os.mkdir(cwd+'/'+'anvio'+'/'+'genuine')
+            os.mkdir(cwd+'/'+'profiles')
+            os.mkdir(cwd+'/'+'profiles'+'/'+'fake_profile')
+            os.mkdir(cwd+'/'+'profiles'+'/'+'genuine_profile')
             os.mkdir(cwd+'/'+'taxonomy')
         else:
             sys.exit('something went wrong with megahit, exit')
@@ -323,8 +318,10 @@ if __name__ == "__main__":
         if not os.path.exists(cwd+'/'+'bt2') :
             os.mkdir(cwd+'/'+'bt2')
 
-        if not os.path.exists(cwd+'/'+'anvio') :
-            os.mkdir(cwd+'/'+'anvio')
+        if not os.path.exists(cwd+'/'+'profiles') :
+            os.mkdir(cwd+'/'+'profiles')
+            os.mkdir(cwd+'/'+'profiles'+'/'+'fake_profile')
+            os.mkdir(cwd+'/'+'profiles'+'/'+'genuine_profile')
 
         if not os.path.exists(cwd+'/'+'taxonomy') :
             os.mkdir(cwd+'/'+'taxonomy')
@@ -493,6 +490,8 @@ if __name__ == "__main__":
     print('done')
 
 
+
+
     ####################################################
     # filtering out, indexing and sorting the filename #
     ####################################################
@@ -507,8 +506,12 @@ if __name__ == "__main__":
         fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
 
     if not os.path.exists(final_bam_filename) :
-        bam2name = extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
+        extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
     print('done')
+
+    bam2name = dict()
+    bam2name[fake_bam_filename] = 'fake_profile'
+    bam2name[final_bam_filename] = 'genuine_profile'
 
 
     ###################################
@@ -521,8 +524,6 @@ if __name__ == "__main__":
     if not os.path.exists(protein_anvio_filename) :
         parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
     print('done')
-
-
 
 
     print('\ngreat, you have completed the first (and longest) part of the pipeline, now let\'s run the anvio\'s commands')
@@ -543,7 +544,7 @@ if __name__ == "__main__":
     print('\n\nCreating the contig.db file')
     contig_db_filename = cwd+'/'+'contigs.db'
     if not os.path.exists(contig_db_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'An example contigs database\''+' --external-gene-calls '+protein_anvio_filename
+        cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -650,22 +651,24 @@ if __name__ == "__main__":
 
 
 
-    ###########################
-    # Creating the profile DB #
-    ###########################
+    ############################
+    # Creating the profiles DB #
+    ############################
 
+    print()
+    print('Running anvi-profile...')
+    profileList = list()
     for bam_filename,name in sorted( bam2name.items() ) :
-        profile_filename = cwd+'/'+'anvio'+'/'+name+'/'+'PROFILE.db'
+        profile_filename = cwd+'/'+'profiles'+'/'+name+'/'+'PROFILE.db'
         profileList.append(profile_filename)
         if not os.path.exists(profile_filename) :
-            cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'anvio'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
+            cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
             print(cmd)
             status = os.system(cmd)
             print('status: '+str(status))
             if not status == 0:
                 sys.exit('something went wrong with anvi-profile, exit')
-
-
+    print('done')
 
 
 
@@ -675,7 +678,7 @@ if __name__ == "__main__":
 
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
     if not os.path.exists(profile_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations'
+        cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations --enforce-hierarchical-clustering'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
