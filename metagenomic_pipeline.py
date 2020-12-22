@@ -373,12 +373,20 @@ if __name__ == "__main__":
         if not status == 0:
             sys.exit('something went wrong with bowtie2-build, exit')
 
-        cmd = 'bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb >'+bam_filename
+        cmd = 'bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb'+' | '+'samtools sort -@ '+str(cpu)+' -o '+bam_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
         if not status == 0:
             sys.exit('something went wrong with bowtie2, exit')
+
+        # creating the index file
+        cmd = 'samtools index '+bam_filename
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with samtools index, exit.')
 
     print('done')
 
