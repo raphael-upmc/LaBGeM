@@ -4,15 +4,180 @@ import os,sys,re
 from collections import defaultdict
 
 
+def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
+    scaffold2info  = defaultdict()
+    file = open( basic_info_contigs_filename, 'r' )
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        scaffold,length,gc,nb_splits = line.split('\t')
+        scaffold2info[ scaffold ] = [length,gc,nb_splits]
+    file.close()
+
+    file = open( coverage_contigs_filename, 'r' )
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        scaffold,coverage = line.split('\t')
+        scaffold2info[ scaffold ].append(coverage)
+    file.close()
+    
+    return scaffold2info
+
+
+def detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
+
+    scaffold2genes = defaultdict(set)
+    gene2scaffold = dict()
+    file = open( protein_filename, 'r' )
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        liste = line.split('\t')
+        geneId = liste[0]
+        scaffold = liste[1]
+        gene2scaffold[ geneId ] = scaffold
+        scaffold2genes[ scaffold ].add(geneId)
+    file.close()
+
+    taxoId2taxon = dict()
+    file = open( taxo_anvio_filename, 'r' )
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        liste = line.split('\t')
+        taxoId = liste[0]
+        del liste[0]
+        taxoId2taxon[taxoId] = liste
+    file.close()
+
+    geneId2taxoId = dict()
+    file = open( gene_taxo_anvio_filename, 'r' )
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        geneId,taxoId = line.split('\t')
+        geneId2taxoId[ geneId ] = taxoId
+    file.close()
+
+    scaffold2taxonomy = dict()
+    for scaffold,geneSet in scaffold2genes.items() :
+        #print()
+        #print(scaffold)
+        taxo2pct = defaultdict(float)
+        for geneId in sorted(geneSet) :
+            if geneId in geneId2taxoId :
+                taxoId = geneId2taxoId[ geneId ]
+                taxon = taxoId2taxon[taxoId][-2]
+            else:
+                taxon = 'Unknown'
+
+            #print('\t'+geneId+'\t'+str(taxon) )
+            taxo2pct[ taxon ] += 1 / float(len(geneSet))
+        #print('\t'+str(taxo2pct))
+        #print()
+
+        TAXON = ''
+        for taxon,pct in sorted(taxo2pct.items(),key=lambda x:x[1], reverse=True) :
+            #print('\t\t'+taxon+'\t'+str(pct))
+            if pct > 0.2 and taxon != 'Unknown' :
+                if TAXON == '' :
+                    TAXON = taxon
+
+        if TAXON != '' :
+            #print('\t\ttaxon: '+TAXON)
+            scaffold2taxonomy[ scaffold ] = TAXON
+
+    return scaffold2taxonomy
+
+
 collection = 'raphael_1_20201108'
 directory = '/env/cns/proj/projet_CSD/scratch/assemblies/Ecro_F_AB1'
 
-profileDb_filename = directory+'/'+'assembly/anvio'+'/'+'PROFILE.db'
-contigDb_filename = directory+'/'+'assembly'+'/'+'contigs.db'
-scaffold_filename = directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
+profileDb_filename = directory+'/'+'assembly'+'/'+'anvio'+'/'+'PROFILE.db'
+contigDb_filename =  directory+'/'+'assembly'+'/'+'contigs.db'
+scaffold_filename =  directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
+protein_filename =   directory+'/'+'assembly'+'/'+'proteins.anvio.tab'
 bam_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam'
-
+bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam.bai'
 cpu = str(36)
+
+
+
+datatable_dir = directory+'/'+'assembly'+'/'+'datatables'
+# if datatables isn't prensent, create it #
+if not os.path.exists(datatable_dir) :
+    os.mkdir(datatable_dir)
+
+
+taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
+if not os.path.exists(taxo_anvio_filename) :
+    cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with anvi-export-table, exit.')
+
+
+gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
+if not os.path.exists(gene_taxo_anvio_filename) :
+    cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+gene_taxo_anvio_filename
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with anvi-export-table, exit.')
+
+
+basic_info_contigs_filename = datatable_dir+'/'+'contigs_basic_info.txt'
+if not os.path.exists(basic_info_contigs_filename) :
+    cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with anvi-export-table, exit.')
+
+
+coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
+if not os.path.exists(coverage_contigs_filename) :
+    cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+coverage_contigs_filename+' --report-contigs'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with anvi-export-splits-and-coverages, exit.')
+
+
+#scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
+
+
+# if the bam_filename isn't sorted, do #
+if not os.path.exists(bai_filename) :
+    tmp_bam_filename = bam_filename+'.unsorted'
+    os.rename(bam_filename,tmp_bam_filename)
+    cmd = 'samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+
+    # creating the index file
+    cmd = 'samtools index '+bam_filename
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with samtools index, exit.')
+
+
+    os.remove(tmp_bam_filename)
+    if os.path.exists(tmp_bam_filename) :
+        sys.exit('something went wrong with os.remove, exit')
+
+    if not os.path.exists(bai_filename):
+        sys.exit('something went wrong with samtools sort, exit')
+
 
 
 refiningBins_directory = directory+'/'+'refinedBins'
@@ -20,6 +185,7 @@ if os.path.exists(refiningBins_directory) :
     print(refiningBins_directory+' already exist, please remove it first')
     sys.exit(refiningBins_directory+' already exist, please remove it first')
 os.mkdir(refiningBins_directory)
+
 
 
 #########
@@ -187,3 +353,11 @@ status = os.system(cmd)
 print('status: '+str(status))
 if not status == 0:
     sys.exit('something went wrong with refinem filter_bins, exit')
+
+
+
+
+#######################
+# parsing the results #
+#######################
+
