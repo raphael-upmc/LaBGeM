@@ -100,7 +100,7 @@ scaffold_filename =  directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
 protein_filename =   directory+'/'+'assembly'+'/'+'proteins.anvio.tab'
 bam_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam'
 bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam.bai'
-cpu = str(36)
+cpu = str(12)
 
 
 
@@ -122,7 +122,7 @@ if not os.path.exists(taxo_anvio_filename) :
 
 gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
 if not os.path.exists(gene_taxo_anvio_filename) :
-    cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+gene_taxo_anvio_filename
+    cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -142,16 +142,17 @@ if not os.path.exists(basic_info_contigs_filename) :
 
 coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
 if not os.path.exists(coverage_contigs_filename) :
-    cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+coverage_contigs_filename+' --report-contigs'
+    cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
     if not status == 0 :
         sys.exit('something went wrong with anvi-export-splits-and-coverages, exit.')
+    os.rename(datatable_dir+'/'+'tmp-COVs.txt',coverage_contigs_filename)
+    os.remove(datatable_dir+'/'+'tmp-CONTIGS.fa' )
 
-
-#scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
-
+anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
+anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
 # if the bam_filename isn't sorted, do #
 if not os.path.exists(bai_filename) :
@@ -177,7 +178,6 @@ if not os.path.exists(bai_filename) :
 
     if not os.path.exists(bai_filename):
         sys.exit('something went wrong with samtools sort, exit')
-
 
 
 refiningBins_directory = directory+'/'+'refinedBins'
