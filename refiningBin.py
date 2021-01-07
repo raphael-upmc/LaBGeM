@@ -2,7 +2,7 @@
 
 import os,sys,re
 from collections import defaultdict
-#from Bio import SeqIO
+from Bio import SeqIO
 
 def runningCheckM(checkm_dir,gene_dir,cpu) :
     os.mkdir(checkm_dir)
@@ -18,12 +18,13 @@ def runningCheckM(checkm_dir,gene_dir,cpu) :
 
                 print(root+'/'+filename)
                 os.symlink(root+'/'+filename,checkm_dir+'/'+'proteins'+'/'+binName+'.faa')
-    cmd = 'checkm lineage_wf --genes -t '+cpu+' -x faa '+checkm_dir+'/'+'proteins'+' '+checkm_dir+'/'+'output'
+    cmd = 'conda activate checkM-1.1.3 && checkm lineage_wf --genes -t '+cpu+' -x faa '+checkm_dir+'/'+'proteins'+' '+checkm_dir+'/'+'output'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
     if not status == 0 :
         sys.exit('something went wrong with checkm lineage_wf, exit.')
+
 
 def writtingOutput(genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, refineM_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin) :
     
