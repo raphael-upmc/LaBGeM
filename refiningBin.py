@@ -2,7 +2,106 @@
 
 import os,sys,re
 from collections import defaultdict
-from Bio import SeqIO
+#from Bio import SeqIO
+
+def runningCheckM(checkm_dir,gene_dir,cpu) :
+    os.mkdir(checkm_dir)
+    os.mkdir(checkm_dir+'/'+'proteins')
+    os.mkdir(checkm_dir+'/'+'output')
+    
+    for root, dirs, files in os.walk(gene_dir, topdown = False):
+        for filename in files :
+            if re.search(r'_genes.faa',filename) :
+                binName = filename.replace('_genes.faa','.faa')
+                if binName == 'Unbinned' :
+                    continue
+
+                print(root+'/'+filename)
+                os.symlink(root+'/'+filename,checkm_dir+'/'+'proteins'+'/'+binName+'.faa')
+    cmd = 'checkm lineage_wf --genes -t '+cpu+' -x faa '+checkm_dir+'/'+'proteins'+' '+checkm_dir+'/'+'output'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with checkm lineage_wf, exit.')
+
+def writtingOutput(genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, refineM_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin) :
+    
+    ###########
+    # refineM #
+    ###########
+    print('refineM...')
+    outliersSet = set()
+    scaffold2outlier = dict()
+    file = open(genomicOutliers_filename,'r')
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        liste = line.split()
+        scaffold = liste[0]
+        outliersSet.add(scaffold)
+        scaffold2outlier[scaffold] = liste[3]
+    file.close()
+
+    outliersTaxoSet = set()
+    file = open(taxoOutlier_filename,'r')
+    for line in file :
+        line = line.rstrip()
+        if re.match(r'#',line) :
+            continue
+        liste = line.split()
+        scaffold = liste[0]
+        outliersTaxoSet.add(scaffold)
+        if scaffold in scaffold2outlier :
+            scaffold2outlier[scaffold] += ',TAXO'
+        else:
+            scaffold2outlier[scaffold] = 'TAXO'
+    file.close()
+
+    refineM_scaffold2info = dict()
+    for root, dirs, files in os.walk(taxoProfile_dir, topdown = False):
+        for filename in files :
+            if re.search(r'.scaffolds.tsv',filename) :
+                binName = filename.replace('.scaffolds.tsv','')
+                print(binName+'\t'+root+'/'+filename)
+                file = open(root+'/'+filename,'r')
+                header = next(file).rstrip()
+                for line in file :
+                    line = line.rstrip()
+                    liste = line.split('\t')
+                    scaffold = liste[0]
+                    refineM_scaffold2info[ scaffold ] = line
+                file.close()
+
+    #########
+    # ANVIO #
+    #########
+    print('writting output...')
+    output = open('refineM.outpout','w')     
+    output.write('scaffold'+'\t'+'bin'+'\t'+'refineM_outlier'+'\t'+'anvio_length'+'\t'+'anvio_gc'+'\t'+'anvio_nb_splits'+'\t'+'anvio_coverage'+'\t'+'anvio_taxonomy'+'\t'+header+'\n')
+    for scaffold,binName in scaffold2bin.items() :
+        if scaffold in anvio_scaffold2taxonomy :
+            taxonomy = anvio_scaffold2taxonomy[scaffold]
+        else:
+            taxonomy = 'Na'
+
+        if scaffold in anvio_scaffold2info :
+            info = '\t'.join(anvio_scaffold2info[ scaffold ])
+        else:
+            info = 'Na\tNa\tNa\tNa'
+
+        if scaffold in refineM_scaffold2info :
+            refineM_info = refineM_scaffold2info[scaffold]
+        else:
+            refineM_info = 'Na'
+        
+        if scaffold in scaffold2outlier :
+            outlier = scaffold2outlier[scaffold]
+        else :
+            outlier = '-'
+        output.write(scaffold+'\t'+binName+'\t'+outlier+'\t'+info+'\t'+taxonomy+'\t'+refineM_info+'\n')
+    output.close()
+
 
 def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
     scaffold2info  = defaultdict()
@@ -103,57 +202,33 @@ bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.f
 cpu = str(36)
 
 
-anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
-bin_dir = anvio_directory+'/'+'bins'
-contig2bin = dict()
-print(bin_dir)
-for root, dirs, files in os.walk(bin_dir, topdown = False):
-    for filename in files :
-        binName = filename.replace('.fa','')
-        filename = root+'/'+filename
-        for record in SeqIO.parse(filename,'fasta') :
-            contig2bin[record.id] = binName
+# anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
+# bin_dir = anvio_directory+'/'+'bins'
+# scaffold2bin = dict()
+# print(bin_dir)
+# for root, dirs, files in os.walk(bin_dir, topdown = False):
+#     for filename in files :
+#         binName = filename.replace('.fna','')
+#         filename = root+'/'+filename
+#         for record in SeqIO.parse(filename,'fasta') :
+#             scaffold2bin[record.id] = binName
     
 
-refiningBins_directory = directory+'/'+'refinedBins'
-refineM_dir = refiningBins_directory+'/'+'refineM'
-genomic_dir = refineM_dir+'/'+'genomicProperties'
-stat_dir = genomic_dir+'/'+'stats'
-
-stat_filename = stat_dir+'/'+'scaffold_stats.tsv'
-file = open(stat_filename,'r')
-header = next(file)
-for line in file :
-    line = line.rstrip()
-    liste = line.split()
-    scaffold = liste[0]
-    gc = liste[2]
-    length = liste[3]
-    coverage = liste[4]
-file.close()
-
-outliersSet = set()
-outliers_dir = genomic_dir+'/'+'outliers'
-outliers_filename = outliers_dir+'/'+'outliers.tsv'
-file = open(outliers_filename,'r')
-header = next(file)
-for line in file :
-    line = line.rstrip()
-    liste = line.split()
-    scaffold = liste[0]
-    outliersSet.add(scaffold)
-file.close()
-
-taxo_dir = refineM_dir+'/'+'taxonomy'
-taxoProfile_dir = taxo_dir+'/'+'profiles'+'/'+'bin_reports'
-print(taxoProfile_dir)
-for root, dirs, files in os.walk(taxoProfile_dir, topdown = False):
-    for filename in files :
-        if re.search(r'.scaffolds.tsv',filename) :
-            print(root+'/'+filename)
+# refiningBins_directory = directory+'/'+'refinedBins'
+# refineM_dir = refiningBins_directory+'/'+'refineM'
+# genomic_dir = refineM_dir+'/'+'genomicProperties'
+# stat_dir = genomic_dir+'/'+'stats'
+# genomicOutliers_dir = genomic_dir+'/'+'outliers'
+# genomicOutliers_filename = genomicOutliers_dir+'/'+'outliers.tsv'
+# taxo_dir = refineM_dir+'/'+'taxonomy'
+# taxoProfile_dir = taxo_dir+'/'+'profiles'+'/'+'bin_reports'
+# taxoOutlier_filename = taxo_dir+'/'+'outliers'+'/'+'taxon_filter.tsv'
+# anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
+# gene_dir = anvio_directory+'/'+'genes'
+# checkm_dir = refiningBins_directory+'/'+'CheckM'
 
 
-sys.exit()
+
 
 datatable_dir = directory+'/'+'assembly'+'/'+'datatables'
 # if datatables isn't prensent, create it #
@@ -202,8 +277,13 @@ if not os.path.exists(coverage_contigs_filename) :
     os.rename(datatable_dir+'/'+'tmp-COVs.txt',coverage_contigs_filename)
     os.remove(datatable_dir+'/'+'tmp-CONTIGS.fa' )
 
-anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
-anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
+
+
+# anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
+# anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
+
+# writtingOutput( genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, anvio_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin)
+
 
 # if the bam_filename isn't sorted, do #
 if not os.path.exists(bai_filename) :
@@ -267,7 +347,7 @@ if os.path.exists(bin_dir) :
     sys.exit(bin_dir+' already exist, please remove it first')
 os.mkdir(bin_dir)
 
-contig2bin = dict()
+scaffold2bin = dict()
 print(bin_dir)
 for root, dirs, files in os.walk(anvi_summarize_directory+'/'+'bin_by_bin', topdown = False):
     for binName in dirs:
@@ -275,7 +355,7 @@ for root, dirs, files in os.walk(anvi_summarize_directory+'/'+'bin_by_bin', topd
         #     continue
         fasta_filename = anvi_summarize_directory+'/'+'bin_by_bin'+'/'+binName+'/'+binName+'-contigs.fa'
         for record in SeqIO.parse(fasta_filename,'fasta') :
-            contig2bin[record.id] = binName
+            scaffold2bin[record.id] = binName
 
 
         if not os.path.exists(bin_dir+'/'+binName+'.fna') :
@@ -286,12 +366,12 @@ for root, dirs, files in os.walk(anvi_summarize_directory+'/'+'bin_by_bin', topd
 #  creating an unbinned file
 seqList = list()
 for record in SeqIO.parse(scaffold_filename,'fasta') :
-    if record.id in contig2bin :
+    if record.id in scaffold2bin :
         continue
     if len(record) < 1000 :
         continue
     seqList.append(record)
-    contig2bin[record.id] = 'Unbinned'
+    scaffold2bin[record.id] = 'Unbinned'
 unbinned_filename = bin_dir+'/'+'Unbinned.fna'
 SeqIO.write(seqList,unbinned_filename,'fasta')
     
@@ -394,8 +474,6 @@ print('status: '+str(status))
 if not status == 0:
     sys.exit('something went wrong with refinem taxon_profile, exit')
 
-
-
 taxoOutlier_dir = taxo_dir+'/'+'outliers'
 if os.path.exists(taxoOutlier_dir) :
     sys.exit(taxoOutlier_dir+' already exist, please remove it first')
@@ -408,8 +486,6 @@ status = os.system(cmd)
 print('status: '+str(status))
 if not status == 0:
     sys.exit('something went wrong with refinem taxon_filter, exit')
-
-
 
 taxoFilter_dir = taxo_dir+'/'+'filters'
 if os.path.exists(taxoFilter_dir) :
@@ -424,9 +500,28 @@ if not status == 0:
     sys.exit('something went wrong with refinem filter_bins, exit')
 
 
+##########
+# CheckM #
+##########
+
+checkm_dir = refiningBins_directory+'/'+'CheckM'
+runningCheckM(checkm_dir,gene_dir,cpu)
+
+
+###########
+# GTDB-tk #
+###########
+
+# gtdbtk_dir = refiningBins_directory+'/'+'GTDB-tk'
+# runningGTDBtk(gtdbtk_dir,gene_dir,cpu)
+
 
 
 #######################
 # parsing the results #
 #######################
 
+anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
+anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
+
+writtingOutput( genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, anvio_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin)
