@@ -2,7 +2,7 @@
 
 import os,sys,re
 from collections import defaultdict
-
+from Bio import SeqIO
 
 def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
     scaffold2info  = defaultdict()
@@ -100,9 +100,60 @@ scaffold_filename =  directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
 protein_filename =   directory+'/'+'assembly'+'/'+'proteins.anvio.tab'
 bam_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam'
 bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam.bai'
-cpu = str(12)
+cpu = str(36)
 
 
+anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
+bin_dir = anvio_directory+'/'+'bins'
+contig2bin = dict()
+print(bin_dir)
+for root, dirs, files in os.walk(bin_dir, topdown = False):
+    for filename in files :
+        binName = filename.replace('.fa','')
+        filename = root+'/'+filename
+        for record in SeqIO.parse(filename,'fasta') :
+            contig2bin[record.id] = binName
+    
+
+refiningBins_directory = directory+'/'+'refinedBins'
+refineM_dir = refiningBins_directory+'/'+'refineM'
+genomic_dir = refineM_dir+'/'+'genomicProperties'
+stat_dir = genomic_dir+'/'+'stats'
+
+stat_filename = stat_dir+'/'+'scaffold_stats.tsv'
+file = open(stat_filename,'r')
+header = next(file)
+for line in file :
+    line = line.rstrip()
+    liste = line.split()
+    scaffold = liste[0]
+    gc = liste[2]
+    length = liste[3]
+    coverage = liste[4]
+file.close()
+
+outliersSet = set()
+outliers_dir = genomic_dir+'/'+'outliers'
+outliers_filename = outliers_dir+'/'+'outliers.tsv'
+file = open(outliers_filename,'r')
+header = next(file)
+for line in file :
+    line = line.rstrip()
+    liste = line.split()
+    scaffold = liste[0]
+    outliersSet.add(scaffold)
+file.close()
+
+taxo_dir = refineM_dir+'/'+'taxonomy'
+taxoProfile_dir = taxo_dir+'/'+'profiles'+'/'+'bin_reports'
+print(taxoProfile_dir)
+for root, dirs, files in os.walk(taxoProfile_dir, topdown = False):
+    for filename in files :
+        if re.search(r'.scaffolds.tsv',filename) :
+            print(root+'/'+filename)
+
+
+sys.exit()
 
 datatable_dir = directory+'/'+'assembly'+'/'+'datatables'
 # if datatables isn't prensent, create it #
@@ -216,16 +267,34 @@ if os.path.exists(bin_dir) :
     sys.exit(bin_dir+' already exist, please remove it first')
 os.mkdir(bin_dir)
 
+contig2bin = dict()
 print(bin_dir)
 for root, dirs, files in os.walk(anvi_summarize_directory+'/'+'bin_by_bin', topdown = False):
     for binName in dirs:
-        if re.match(r'Euk',binName) :
-            continue
+        # if re.match(r'Euk',binName) :
+        #     continue
         fasta_filename = anvi_summarize_directory+'/'+'bin_by_bin'+'/'+binName+'/'+binName+'-contigs.fa'
+        for record in SeqIO.parse(fasta_filename,'fasta') :
+            contig2bin[record.id] = binName
+
+
         if not os.path.exists(bin_dir+'/'+binName+'.fna') :
             print(binName+'\t'+fasta_filename)
             os.symlink(fasta_filename,bin_dir+'/'+binName+'.fna')
 
+
+#  creating an unbinned file
+seqList = list()
+for record in SeqIO.parse(scaffold_filename,'fasta') :
+    if record.id in contig2bin :
+        continue
+    if len(record) < 1000 :
+        continue
+    seqList.append(record)
+    contig2bin[record.id] = 'Unbinned'
+unbinned_filename = bin_dir+'/'+'Unbinned.fna'
+SeqIO.write(seqList,unbinned_filename,'fasta')
+    
 
 
 ###########
