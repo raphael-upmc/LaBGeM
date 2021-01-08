@@ -4,7 +4,8 @@ import os,sys,re
 from collections import defaultdict
 from Bio import SeqIO
 
-def runningCheckM(checkm_dir,gene_dir,cpu) :
+def runningCheckM(checkm_dir,gene_dir) :
+    print('checkM...')
     os.mkdir(checkm_dir)
     os.mkdir(checkm_dir+'/'+'proteins')
     os.mkdir(checkm_dir+'/'+'output')
@@ -12,13 +13,15 @@ def runningCheckM(checkm_dir,gene_dir,cpu) :
     for root, dirs, files in os.walk(gene_dir, topdown = False):
         for filename in files :
             if re.search(r'_genes.faa',filename) :
-                binName = filename.replace('_genes.faa','.faa')
+                print(filename)
+                binName = filename.replace('_genes.faa','')
                 if binName == 'Unbinned' :
                     continue
-
+                if re.match(r'Euk',binName) :
+                    continue
                 print(root+'/'+filename)
                 os.symlink(root+'/'+filename,checkm_dir+'/'+'proteins'+'/'+binName+'.faa')
-    cmd = 'conda activate checkM-1.1.3 && checkm lineage_wf --genes -t '+cpu+' -x faa '+checkm_dir+'/'+'proteins'+' '+checkm_dir+'/'+'output'
+    cmd = 'conda activate checkM-1.1.3 && checkm lineage_wf --genes -t 1 -x faa '+checkm_dir+'/'+'proteins'+' '+checkm_dir+'/'+'output > '+checkm_dir+'/'+'checkm.log 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -506,7 +509,7 @@ if not status == 0:
 ##########
 
 checkm_dir = refiningBins_directory+'/'+'CheckM'
-runningCheckM(checkm_dir,gene_dir,cpu)
+runningCheckM(checkm_dir,gene_dir)
 
 
 ###########

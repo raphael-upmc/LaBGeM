@@ -260,9 +260,14 @@ if __name__ == "__main__":
     else:
         k = args.k
 
-
-    sample = args.sample
-    project = args.project
+    noFunkyCharacter = r'^[A-Za-z0-9_]*$'
+    if re.match(noFunkyCharacter, args.sample) and re.match(noFunkyCharacter, args.sample) :
+        sample = args.sample
+        project = args.project
+    else:
+        print(sample)
+        print(project)
+        sys.exit('Please limit the characters that make up the project and sample names to ASCII letters, digits, and the underscore character')
 
     print('\n')
     print('##############')
