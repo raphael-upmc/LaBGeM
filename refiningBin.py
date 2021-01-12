@@ -4,24 +4,50 @@ import os,sys,re
 from collections import defaultdict
 from Bio import SeqIO
 
-def runningCheckM(checkm_dir,gene_dir) :
-    print('checkM...')
-    os.mkdir(checkm_dir)
-    os.mkdir(checkm_dir+'/'+'proteins')
-    os.mkdir(checkm_dir+'/'+'output')
+def runningGTDBtk(gtdbtk_dir,bin_dir,cpu) :
+    print('GTDB-tk...')
+    os.mkdir(gtdbtk_dir)
+    os.mkdir(gtdbtk_dir+'/'+'bins')
+    os.mkdir(gtdbtk_dir+'/'+'output')
     
-    for root, dirs, files in os.walk(gene_dir, topdown = False):
+    for root, dirs, files in os.walk(bin_dir, topdown = False):
         for filename in files :
-            if re.search(r'_genes.faa',filename) :
+            if re.search(r'.fna',filename) :
                 print(filename)
-                binName = filename.replace('_genes.faa','')
+                binName = filename.replace('.fna','')
                 if binName == 'Unbinned' :
                     continue
                 if re.match(r'Euk',binName) :
                     continue
                 print(root+'/'+filename)
-                os.symlink(root+'/'+filename,checkm_dir+'/'+'proteins'+'/'+binName+'.faa')
-    cmd = 'conda activate checkM-1.1.3 && checkm lineage_wf --genes -t 1 -x faa '+checkm_dir+'/'+'proteins'+' '+checkm_dir+'/'+'output > '+checkm_dir+'/'+'checkm.log 2>&1'
+                os.symlink(root+'/'+filename,gtdbtk_dir+'/'+'bins'+'/'+binName+'.fna')
+    cmd = 'source activate gtdbtk-1.4.0 && gtdbtk classify_wf  --cpus '+cpu+' --genome_dir '+gtdbtk_dir+'/'+'bins'+' --out_dir '+gtdbtk_dir+'/'+'output > '+gtdbtk_dir+'/'+'gtdbtk.log 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with gtdbtk classify_wf, exit.')
+
+
+
+def runningCheckM(checkm_dir,bin_dir,cpu) :
+    print('checkM...')
+    os.mkdir(checkm_dir)
+    os.mkdir(checkm_dir+'/'+'bins')
+    os.mkdir(checkm_dir+'/'+'output')
+    
+    for root, dirs, files in os.walk(bin_dir, topdown = False):
+        for filename in files :
+            if re.search(r'.fna',filename) :
+                print(filename)
+                binName = filename.replace('.fna','')
+                if binName == 'Unbinned' :
+                    continue
+                if re.match(r'Euk',binName) :
+                    continue
+                print(root+'/'+filename)
+                os.symlink(root+'/'+filename,checkm_dir+'/'+'bins'+'/'+binName+'.fna')
+    cmd = 'source activate checkM-1.1.3 && checkm lineage_wf -t '+cpu+' '+checkm_dir+'/'+'bins'+' '+checkm_dir+'/'+'output > '+checkm_dir+'/'+'checkm.log 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -29,7 +55,7 @@ def runningCheckM(checkm_dir,gene_dir) :
         sys.exit('something went wrong with checkm lineage_wf, exit.')
 
 
-def writtingOutput(genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, refineM_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin) :
+def writtingOutput(genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, refineM_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin, output_filename) :
     
     ###########
     # refineM #
@@ -80,8 +106,8 @@ def writtingOutput(genomicOutliers_filename, taxoOutlier_filename, taxoProfile_d
     #########
     # ANVIO #
     #########
-    print('writting output...')
-    output = open('refineM.outpout','w')     
+    print('writting output '+output_filename+'...')
+    output = open(output_filename,'w')     
     output.write('scaffold'+'\t'+'bin'+'\t'+'refineM_outlier'+'\t'+'anvio_length'+'\t'+'anvio_gc'+'\t'+'anvio_nb_splits'+'\t'+'anvio_coverage'+'\t'+'anvio_taxonomy'+'\t'+header+'\n')
     for scaffold,binName in scaffold2bin.items() :
         if scaffold in anvio_scaffold2taxonomy :
@@ -432,7 +458,8 @@ if os.path.exists(filter_dir) :
     sys.exit(filter_dir+' already exist, please remove it first')
 os.mkdir(filter_dir)
 
-cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+outliers_dir+'/outliers.tsv '+filter_dir
+genomicOutliers_filename = outliers_dir+'/outliers.tsv'
+cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+genomicOutliers_filename+' '+filter_dir
 print(cmd)
 status = os.system(cmd)
 print('status: '+str(status))
@@ -483,8 +510,9 @@ if os.path.exists(taxoOutlier_dir) :
     sys.exit(taxoOutlier_dir+' already exist, please remove it first')
 os.mkdir(taxoOutlier_dir)
 
-taxonFilter_filename = taxoOutlier_dir+'/'+'taxon_filter.tsv'
-cmd = 'source activate refineM-0.1.2 && refinem taxon_filter -c '+cpu+' '+taxoProfile_dir+' '+taxonFilter_filename
+
+taxoOutliers_filename = taxoOutlier_dir+'/'+'taxon_filter.tsv'
+cmd = 'source activate refineM-0.1.2 && refinem taxon_filter -c '+cpu+' '+taxoProfile_dir+' '+taxoOutliers_filename
 print(cmd)
 status = os.system(cmd)
 print('status: '+str(status))
@@ -496,7 +524,7 @@ if os.path.exists(taxoFilter_dir) :
     sys.exit(taxoFilter_dir+' already exist, please remove it first')
 os.mkdir(taxoFilter_dir)
 
-cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+taxonFilter_filename+' '+taxoFilter_dir
+cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+taxoOutliers_filename+' '+taxoFilter_dir
 print(cmd)
 status = os.system(cmd)
 print('status: '+str(status))
@@ -509,16 +537,15 @@ if not status == 0:
 ##########
 
 checkm_dir = refiningBins_directory+'/'+'CheckM'
-runningCheckM(checkm_dir,gene_dir)
+runningCheckM(checkm_dir,bin_dir,cpu)
 
 
 ###########
 # GTDB-tk #
 ###########
 
-# gtdbtk_dir = refiningBins_directory+'/'+'GTDB-tk'
-# runningGTDBtk(gtdbtk_dir,gene_dir,cpu)
-
+gtdbtk_dir = refiningBins_directory+'/'+'GTDB-tk'
+runningGTDBtk(gtdbtk_dir,bin_dir,cpu)
 
 
 #######################
@@ -528,4 +555,6 @@ runningCheckM(checkm_dir,gene_dir)
 anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
 anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
-writtingOutput( genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, anvio_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin)
+
+output_filename = refiningBins_directory+'/'+'refiningBins.output'
+writtingOutput( genomicOutliers_filename, taxoOutliers_filename, taxoProfile_dir, anvio_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin, output_filename)
