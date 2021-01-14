@@ -5,18 +5,112 @@ from collections import defaultdict
 from Bio import SeqIO
 import argparse
 import ast
+import json
+
+def getProjectSampleNames(scaffold_filename) :
+    file = open(scaffold_filename,'r')
+    for line in file :
+        if re.match('>',line) :
+            defline = line.rstrip().replace('>','')
+            project,sample,contig = defline.split('__')
+            break
+        else:
+            continue
+    file.close()
+    return project,sample
+
+
+def update(directory) :
+
+    scaffold_filename =  directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
+    protein_filename =   directory+'/'+'assembly'+'/'+'proteins.anvio.tab'
+    bam_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam'
+    bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam.bai'
+
+    project,sample = getProjectSampleNames(scaffold_filename)
+
+    datatable_dir = directory+'/'+'assembly'+'/'+'datatables'
+    # if datatables isn't prensent, create it #
+    if not os.path.exists(datatable_dir) :
+        os.mkdir(datatable_dir)
+
+
+    taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
+    if not os.path.exists(taxo_anvio_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-table, exit.')
+
+
+    gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
+    if not os.path.exists(gene_taxo_anvio_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-table, exit.')
+
+
+    basic_info_contigs_filename = datatable_dir+'/'+'contigs_basic_info.txt'
+    if not os.path.exists(basic_info_contigs_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-table, exit.')
+
+
+    coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
+    if not os.path.exists(coverage_contigs_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-splits-and-coverages, exit.')
+        os.rename(datatable_dir+'/'+'tmp-COVs.txt',coverage_contigs_filename)
+        os.remove(datatable_dir+'/'+'tmp-CONTIGS.fa' )
+
+    # if the bam_filename isn't sorted, do #
+    if not os.path.exists(bai_filename) :
+        sortingBAM(bam_filename,bai_filename)
+
+    # creating a json file #
+    config_filename = directory+'/'+'assembly'+'/'+'info.json'
+    output = open(config_filename,'w')
+    output.write('{'+'\n')
+    output.write('\t\"project\":\"'+project+'\",\n')
+    output.write('\t\"sample\":\"'+sample+'\",\n')
+    output.write('\t\"directory\":\"'+directory+'/'+'assembly'+'\",\n')
+    output.write('\t\"contig_filename\":\"'+directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'+'\",\n')
+    output.write('\t\"protein_filename\":\"'+directory+'/'+'assembly'+'/'+'proteins.anvio.tab'+'\",\n')
+    output.write('\t\"bam_filename\":\"'+bam_filename+'\",\n')
+    output.write('\t\"bai_filename\":\"'+bai_filename+'\",\n')
+    output.write('\t\"contigDb_filename\":\"'+directory+'/'+'assembly'+'/'+'contigs.db'+'\",\n')
+    output.write('\t\"profileDb_filename\":\"'+directory+'/'+'assembly'+'/'+'anvio'+'/'+'PROFILE.db'+'\",\n')
+    output.write('\t\"coverage_contigs_filename\":\"'+coverage_contigs_filename+'\",\n')
+    output.write('\t\"basic_info_contigs_filename\":\"'+basic_info_contigs_filename+'\",\n')
+    output.write('\t\"gene_taxo_anvio_filename\":\"'+gene_taxo_anvio_filename+'\",\n')
+    output.write('\t\"taxo_anvio_filename\":\"'+taxo_anvio_filename+'\"\n')
+    output.write('}'+'\n')
+    output.close()
 
 
 def sortingBAM(bam_filename,bai_filename) :
     tmp_bam_filename = bam_filename+'.unsorted'
     os.rename(bam_filename,tmp_bam_filename)
-    cmd = 'samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename
+    cmd = 'samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
 
     # creating the index file
-    cmd = 'samtools index '+bam_filename
+    cmd = 'samtools index '+bam_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -107,7 +201,7 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
         bin2info[binName] = line
     file.close()
     
-    HEADER = 'Bins'
+    HEADER = 'Bin_names'
     for elt in header :
         HEADER += '\t'+'anvio_'+elt
 
@@ -125,17 +219,19 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
             headerSet.add(key)
     file.close()
 
+    # '# ambiguous bases' , '# contigs' , '# genomes' , '# marker sets' , '# markers' , '# predicted genes' , '# scaffolds', '0' , '1' , '2' , '3' , '4' , '5+' , 'Coding density' , 'Completeness' , 'Contamination' , 'GC' , 'GC std' , 'GCN0' , 'GCN1' , 'GCN2' , 'GCN3' , 'GCN4' , 'GCN5+' , 'Genome size' , 'Longest contig' , 'Longest scaffold' , 'Mean contig length' , 'Mean scaffold length' , 'N50 (contigs)' , 'N50 (scaffolds)' , 'Translation table' , 'marker lineage'
 
-    for key in sorted( headerSet ) :
-        HEADER += '\t'+'CheckM_'+key
+    checkM_header = ['# ambiguous bases' , '# contigs' , '# genomes' , '# marker sets' , '# markers' , '# predicted genes' , 'Coding density' , 'Completeness' , 'Contamination' , 'GC' , 'GC std' , 'Genome size' , 'Longest contig' , 'Mean contig length' , 'N50 (contigs)' , 'Translation table' , 'marker lineage']
+    for key in checkM_header :
+        HEADER += '\t'+'CheckM_'+key.replace(' ','_')
 
     for binName in bin2info :
         if binName in bin2checkm :
             checkm2info = bin2checkm[ binName ]
-            for key in sorted( headerSet ) :
+            for key in checkM_header :
                 bin2info[binName] += '\t'+str( checkm2info[key] )
         else:
-            for key in sorted( headerSet ) :
+            for key in checkM_header :
                 bin2info[binName] += '\t'+'Na'
 
     gtdb_bac_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.bac120.summary.tsv'
@@ -173,7 +269,7 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
     print('\n')
     output.write(HEADER+'\n')
     for binName,info in bin2info.items() :
-        output.write(binName+'\t'+info+'\n')
+        output.write(info+'\n')
     output.close()
     
 
@@ -379,25 +475,47 @@ if __name__ == "__main__":
     else:
         cpu = str(args.cpu)
 
+    # updating the assembly
+    update(directory)
 
-    profileDb_filename = directory+'/'+'assembly'+'/'+'anvio'+'/'+'PROFILE.db'
-    contigDb_filename =  directory+'/'+'assembly'+'/'+'contigs.db'
-    scaffold_filename =  directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
-    protein_filename =   directory+'/'+'assembly'+'/'+'proteins.anvio.tab'
-    bam_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam'
-    bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam.bai'
+
+    # loading the json info file
+    config_filename = directory+'/'+'assembly'+'/'+'info.json'
+    if not os.path.exists(config_filename) :
+        sys.exit(config_filename+' does not exist, exit')
+    else:
+        config_filename = os.path.abspath(config_filename)
+        
+    with open(config_filename) as f:
+        data = json.load(f)
+
+    project = data['project']
+    sample = data['sample']
+    profileDb_filename = data['profileDb_filename']
+    contigDb_filename = data['contigDb_filename']
+    scaffold_filename = data['contig_filename']
+    protein_filename = data['protein_filename']
+    bam_filename = data['bam_filename']
+    bai_filename = data['bai_filename']
+    coverage_contigs_filename = data['coverage_contigs_filename']
+    basic_info_contigs_filename = data['basic_info_contigs_filename']
+    gene_taxo_anvio_filename = data['gene_taxo_anvio_filename']
+    taxo_anvio_filename = data['taxo_anvio_filename']
+
+
 
     print('\n')
     print('##############')
     print('# parameters #')
     print('##############')
     print()
+    print('Project name: '+project)
+    print('Sample name: '+sample)
     print('Collection name: '+collection)
     print('Working directory: '+directory)
     print('Number of CPUs: '+str(cpu))
 
 
-    
     print('\n')
     print('############')
     print('# pipeline #')
@@ -405,59 +523,9 @@ if __name__ == "__main__":
     print()
 
 
-    datatable_dir = directory+'/'+'assembly'+'/'+'datatables'
-    # if datatables isn't prensent, create it #
-    if not os.path.exists(datatable_dir) :
-        os.mkdir(datatable_dir)
-
-
-    taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
-    if not os.path.exists(taxo_anvio_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status)+'\n')
-        if not status == 0 :
-            sys.exit('something went wrong with anvi-export-table, exit.')
-
-
-    gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
-    if not os.path.exists(gene_taxo_anvio_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status)+'\n')
-        if not status == 0 :
-            sys.exit('something went wrong with anvi-export-table, exit.')
-
-
-    basic_info_contigs_filename = datatable_dir+'/'+'contigs_basic_info.txt'
-    if not os.path.exists(basic_info_contigs_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status)+'\n')
-        if not status == 0 :
-            sys.exit('something went wrong with anvi-export-table, exit.')
-
-
-    coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
-    if not os.path.exists(coverage_contigs_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status)+'\n')
-        if not status == 0 :
-            sys.exit('something went wrong with anvi-export-splits-and-coverages, exit.')
-        os.rename(datatable_dir+'/'+'tmp-COVs.txt',coverage_contigs_filename)
-        os.remove(datatable_dir+'/'+'tmp-CONTIGS.fa' )
-
-
-
-    # if the bam_filename isn't sorted, do #
-    if not os.path.exists(bai_filename) :
-        sortingBAM(bam_filename,bai_filename)
-
+    #####################
+    # refining the bins #
+    #####################
 
     refiningBins_directory = directory+'/'+'refinedBins'
     if os.path.exists(refiningBins_directory) :
@@ -467,9 +535,11 @@ if __name__ == "__main__":
 
 
 
-    #########
-    # ANVIO #
-    #########
+
+
+    #################
+    # Step 1: ANVIO #
+    #################
 
     anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
     if os.path.exists(anvio_directory) :
@@ -477,7 +547,7 @@ if __name__ == "__main__":
     else:
         os.mkdir(anvio_directory)
         anvi_summarize_directory = anvio_directory+'/'+'SAMPLES-SUMMARY'
-        cmd = 'source activate anvio-6.2 && anvi-summarize -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+anvi_summarize_directory+' -C '+collection
+        cmd = 'source activate anvio-6.2 && anvi-summarize -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+anvi_summarize_directory+' -C '+collection+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
@@ -521,16 +591,20 @@ if __name__ == "__main__":
         scaffold2bin[record.id] = 'Unbinned'
     unbinned_filename = bin_dir+'/'+'Unbinned.fna'
     SeqIO.write(seqList,unbinned_filename,'fasta')
-    
+
+    # parsing the results
+    anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
+    anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
 
-    ###########
-    # refineM #
-    ###########
 
 
-    # Removing contamination based on taxonomic assignments
+    ###################
+    # step 2: refineM #
+    ###################
 
+
+    # Removing contaminations based on genomic properties
 
     refineM_dir = refiningBins_directory+'/'+'refineM'
     if os.path.exists(refineM_dir) :
@@ -542,14 +616,13 @@ if __name__ == "__main__":
         sys.exit(genomic_dir+' already exist, please remove it first')
     os.mkdir(genomic_dir)
 
-
     stat_dir = genomic_dir+'/'+'stats'
     if os.path.exists(stat_dir) :
         sys.exit(stat_dir+' already exist, please remove it first')
     os.mkdir(stat_dir)
 
 
-    cmd = 'source activate refineM-0.1.2 && refinem scaffold_stats -c '+cpu+' '+scaffold_filename+' '+bin_dir+' '+stat_dir+' '+bam_filename
+    cmd = 'source activate refineM-0.1.2 && refinem scaffold_stats -c '+cpu+' '+scaffold_filename+' '+bin_dir+' '+stat_dir+' '+bam_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -562,7 +635,7 @@ if __name__ == "__main__":
         sys.exit(outliers_dir+' already exist, please remove it first')
     os.mkdir(outliers_dir)
 
-    cmd = 'source activate refineM-0.1.2 && refinem outliers '+stat_dir+'/scaffold_stats.tsv'+' '+outliers_dir
+    cmd = 'source activate refineM-0.1.2 && refinem outliers '+stat_dir+'/scaffold_stats.tsv'+' '+outliers_dir+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -576,7 +649,7 @@ if __name__ == "__main__":
     os.mkdir(filter_dir)
 
     genomicOutliers_filename = outliers_dir+'/outliers.tsv'
-    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+genomicOutliers_filename+' '+filter_dir
+    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+genomicOutliers_filename+' '+filter_dir+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -585,16 +658,14 @@ if __name__ == "__main__":
     print('\n\n')
 
 
-    ####################
-    # refineM taxonomy #
-    ####################
+    # Removing contaminations based on the contig taxonomy
 
     gene_dir = anvio_directory+'/'+'genes'
     if os.path.exists(gene_dir) :
         sys.exit(gene_dir_dir+' already exist, please remove it first')
     os.mkdir(gene_dir)
 
-    cmd = 'source activate refineM-0.1.2 && refinem call_genes -c '+cpu+' '+bin_dir+' '+gene_dir
+    cmd = 'source activate refineM-0.1.2 && refinem call_genes -c '+cpu+' '+bin_dir+' '+gene_dir+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -615,7 +686,7 @@ if __name__ == "__main__":
     os.mkdir(taxoProfile_dir)
 
 
-    cmd = 'source activate refineM-0.1.2 && refinem taxon_profile -c '+cpu+' '+gene_dir+' '+stat_dir+'/scaffold_stats.tsv'+' '+reference_db_filename+' '+reference_taxonomy_filename+' '+taxoProfile_dir
+    cmd = 'source activate refineM-0.1.2 && refinem taxon_profile -c '+cpu+' '+gene_dir+' '+stat_dir+'/scaffold_stats.tsv'+' '+reference_db_filename+' '+reference_taxonomy_filename+' '+taxoProfile_dir+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -629,7 +700,7 @@ if __name__ == "__main__":
 
 
     taxoOutliers_filename = taxoOutlier_dir+'/'+'taxon_filter.tsv'
-    cmd = 'source activate refineM-0.1.2 && refinem taxon_filter -c '+cpu+' '+taxoProfile_dir+' '+taxoOutliers_filename
+    cmd = 'source activate refineM-0.1.2 && refinem taxon_filter -c '+cpu+' '+taxoProfile_dir+' '+taxoOutliers_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -641,7 +712,7 @@ if __name__ == "__main__":
         sys.exit(taxoFilter_dir+' already exist, please remove it first')
     os.mkdir(taxoFilter_dir)
 
-    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+taxoOutliers_filename+' '+taxoFilter_dir
+    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+taxoOutliers_filename+' '+taxoFilter_dir+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -649,28 +720,26 @@ if __name__ == "__main__":
         sys.exit('something went wrong with refinem filter_bins, exit')
 
 
-    ##########
-    # CheckM #
-    ##########
+
+    ##################
+    # step 3: CheckM #
+    ##################
 
     checkm_dir = refiningBins_directory+'/'+'CheckM'
     runningCheckM(checkm_dir,bin_dir,cpu)
 
 
-    ###########
-    # GTDB-tk #
-    ###########
+    ###################
+    # step 4: GTDB-tk #
+    ###################
 
     gtdbtk_dir = refiningBins_directory+'/'+'GTDB-tk'
     runningGTDBtk(gtdbtk_dir,bin_dir,cpu)
 
 
     #######################
-    # parsing the results #
+    # writing the results #
     #######################
-
-    anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
-    anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
     output_dir = refiningBins_directory+'/'+'output'
     os.mkdir(output_dir)    
