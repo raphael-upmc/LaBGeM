@@ -6,6 +6,33 @@ from Bio import SeqIO
 import argparse
 import ast
 import json
+from xlsxwriter.workbook import Workbook
+import csv
+
+
+def sortingBAM(bam_filename,bai_filename) :
+    tmp_bam_filename = bam_filename+'.unsorted'
+    os.rename(bam_filename,tmp_bam_filename)
+    cmd = 'samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+
+    # creating the index file
+    cmd = 'samtools index '+bam_filename+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status)+'\n')
+    if not status == 0 :
+        sys.exit('something went wrong with samtools index, exit.')
+
+    os.remove(tmp_bam_filename)
+    if os.path.exists(tmp_bam_filename) :
+        sys.exit('something went wrong with os.remove, exit')
+
+    if not os.path.exists(bai_filename):
+        sys.exit('something went wrong with samtools sort, exit')
+
 
 def getProjectSampleNames(scaffold_filename) :
     file = open(scaffold_filename,'r')
@@ -24,8 +51,10 @@ def update(directory) :
 
     scaffold_filename =  directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'
     protein_filename =   directory+'/'+'assembly'+'/'+'proteins.anvio.tab'
+    contigDb_filename =   directory+'/'+'assembly'+'/'+'contigs.db'
     bam_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam'
     bai_filename = directory+'/'+'assembly'+'/'+'bt2'+'/'+'megahit.contigs.renamed.fa.bam.bai'
+    profileDb_filename = directory+'/'+'assembly'+'/'+'anvio'+'/'+'PROFILE.db'
 
     project,sample = getProjectSampleNames(scaffold_filename)
 
@@ -101,30 +130,6 @@ def update(directory) :
     output.close()
 
 
-def sortingBAM(bam_filename,bai_filename) :
-    tmp_bam_filename = bam_filename+'.unsorted'
-    os.rename(bam_filename,tmp_bam_filename)
-    cmd = 'samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-
-    # creating the index file
-    cmd = 'samtools index '+bam_filename+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status)+'\n')
-    if not status == 0 :
-        sys.exit('something went wrong with samtools index, exit.')
-
-    os.remove(tmp_bam_filename)
-    if os.path.exists(tmp_bam_filename) :
-        sys.exit('something went wrong with os.remove, exit')
-
-    if not os.path.exists(bai_filename):
-        sys.exit('something went wrong with samtools sort, exit')
-
-
 
 def runningGTDBtk(gtdbtk_dir,bin_dir,cpu) :
     print('GTDB-tk...')
@@ -177,38 +182,55 @@ def runningCheckM(checkm_dir,bin_dir,cpu) :
         sys.exit('something went wrong with checkm lineage_wf, exit.')
 
 
-def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier_filename, taxoProfile_dir, refineM_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin, output_dir) :
+def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio_scaffold2taxonomy, bin2scaffold) :
 
     #################################
     # assembly and collection info #
     #################################
 
+    #######################
+    # anvio sample summary
     collection_filename = refiningBins_directory+'/ANVIO/collection.txt'
     file = open(collection_filename,'r')
     for line in file :
         collection = line.rstrip()
     file.close()
 
-    bin2info = dict()
+    bin2anvio_summary = dict()
+    anvio_summary_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_summary.txt'
+    file = open(anvio_summary_filename,'r')
+    headerList = next(file).rstrip().split('\t')
+    for line in file :
+        line = line.rstrip()
+        liste = line.split('\t')
+        binName = liste[0]
+        if binName not in bin2anvio_summary :
+            bin2anvio_summary[ binName ] = dict()
 
-    anvio_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_summary.txt'
-    file = open(anvio_filename,'r')
+        for i in range(1,len(headerList)) :
+            header = 'Anvio_'+headerList[i].replace(' ','_')
+            feature = liste[i]
+            bin2anvio_summary[binName][header] = feature
+    file.close()
+
+    anvio_genome_coverage_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_across_samples/mean_coverage.txt'
+    file = open(anvio_genome_summary_filename,'r')
     header = next(file).rstrip().split('\t')
     for line in file :
         line = line.rstrip()
         liste = line.split('\t')
         binName = liste[0]
-        bin2info[binName] = line
+        coverage = liste[2]
+        bin2info[binName] += '\t'+coverage
+        bin2anvio_summary[binName]['Anvio_mean_coverage'] = coverage
     file.close()
-    
-    HEADER = 'Bin_names'
-    for elt in header :
-        HEADER += '\t'+'anvio_'+elt
 
 
-    headerSet = set()
+    #########
+    # checkM
+
+    checkmHeaderSet = set()
     bin2checkm = dict()
-    checkm_filename = refiningBins_directory+'/CheckM/output/storage/bin_stats.analyze.tsv'
     checkm_filename = refiningBins_directory+'/CheckM/output/storage/bin_stats_ext.tsv'
     file = open(checkm_filename,'r')
     for line in file :
@@ -216,24 +238,14 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
         liste = line.split('\t')
         bin2checkm[ liste[0] ] = ast.literal_eval(liste[1])
         for key,value in bin2checkm[ liste[0] ].items() :
-            headerSet.add(key)
+            checkmHeaderSet.add(key)
     file.close()
 
-    # '# ambiguous bases' , '# contigs' , '# genomes' , '# marker sets' , '# markers' , '# predicted genes' , '# scaffolds', '0' , '1' , '2' , '3' , '4' , '5+' , 'Coding density' , 'Completeness' , 'Contamination' , 'GC' , 'GC std' , 'GCN0' , 'GCN1' , 'GCN2' , 'GCN3' , 'GCN4' , 'GCN5+' , 'Genome size' , 'Longest contig' , 'Longest scaffold' , 'Mean contig length' , 'Mean scaffold length' , 'N50 (contigs)' , 'N50 (scaffolds)' , 'Translation table' , 'marker lineage'
 
-    checkM_header = ['# ambiguous bases' , '# contigs' , '# genomes' , '# marker sets' , '# markers' , '# predicted genes' , 'Coding density' , 'Completeness' , 'Contamination' , 'GC' , 'GC std' , 'Genome size' , 'Longest contig' , 'Mean contig length' , 'N50 (contigs)' , 'Translation table' , 'marker lineage']
-    for key in checkM_header :
-        HEADER += '\t'+'CheckM_'+key.replace(' ','_')
+    #######
+    # gtdb
 
-    for binName in bin2info :
-        if binName in bin2checkm :
-            checkm2info = bin2checkm[ binName ]
-            for key in checkM_header :
-                bin2info[binName] += '\t'+str( checkm2info[key] )
-        else:
-            for key in checkM_header :
-                bin2info[binName] += '\t'+'Na'
-
+    bin2gtdb = dict()
     gtdb_bac_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.bac120.summary.tsv'
     gtdb_arc_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.ar122.summary.tsv'
     for filename in [gtdb_bac_filename,gtdb_arc_filename] :
@@ -241,15 +253,21 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
             continue
         else:
             file = open(filename,'r')
-            gtdb_header = next(file).rstrip().split('\t')
+            gtdb_headerList = next(file).rstrip().split('\t')
             del(gtdb_header[0])
             for line in file :
                 line = line.rstrip()
                 liste = line.split('\t')
                 binName = liste[0]
-                del(liste[0])
-                bin2info[binName] += '\t'+'\t'.join(liste)
+                if binName not in bin2gtdb :
+                    bin2gtdb[ binName ]
+
+                for i in range(1,len(gtdb_headerList)) :
+                    header = 'Gtdb_'+gtdb_headerList[i].replace(' ','_')
+                    feature = liste[i]
+                    bin2gtdb[binName][header] = feature
             file.close()
+
 
 
 
@@ -257,26 +275,83 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
     # collections #
     ###############
 
+    filenameList = list()
+    output_dir = refiningBins_directory+'/'+'output' 
+    os.mkdir(output_dir)
+
     print('writting outputs in'+output_dir+'...')
-    output = open(output_dir+'/'+'collection.tsv','w')
+    filenameList.append(output_dir+'/'+'collection.tsv')
+    filenameList.append(output_dir+'/'+'Anvio_summary.tsv')
+    filenameList.append(output_dir+'/'+'CheckM.tsv')
+    filenameList.append(output_dir+'/'+'GTDBtk.tsv')
 
-    for elt in gtdb_header :
-        HEADER += '\t'+'gtdbtk_'+elt
 
-    print('\n')
-    print('Collection: '+'\t'+collection+'\n')
-    print('working directory: '+'\t'+refiningBins_directory+'\n')
-    print('\n')
-    output.write(HEADER+'\n')
-    for binName,info in bin2info.items() :
-        output.write(info+'\n')
+    # Anvio-summary
+
+    output = open(output_dir+'/'+'Anvio_summary.tsv','w')
+    headerAnvioList = ['Anvio_taxon','Anvio_mean_coverage','Anvio_total_length','Anvio_num_contigs','Anvio_N50','Anvio_GC_content','Anvio_percent_completion','Anvio_percent_redundancy']
+    output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\n')
+    for binName,key2feature in bin2anvio_summary.items() :
+        for header in headerAnvioList :
+            output.write('\t'+key2feature[header])
+        output.write('\n')
     output.close()
     
+    # CheckM
+    output = open(output_dir+'/'+'CheckM.tsv','w')
+    output.write( 'Bin'+'\t'+'\t'.join(sorted(list(checkmHeaderSet))+'\n') )
+    for binName,key2feature in bin2checkm.items() :
+        output.write(binName)
+        for header in sorted(list(checkmHeaderSet)) :
+            output.write('\t'+key2feature[header])
+        output.write('\n')
+    output.close()
+
+    # GTDB
+    output = open(output_dir+'/'+'GTDBtk.tsv','w')
+    output.write( 'Bin'+'\t'+'\t'.join(gtdb_headerList)+'\n' )
+    for binName,key2feature in bin2gtdb.items() :
+        output.write(binName)
+        for header in gtdb_headerList :
+            output.write('\t'+key2feature[header])
+        output.write('\n')
+    output.close()
+
+    # Collection
+    output = open(output_dir+'/'+'collection.tsv','w')
+    output.write('Project: '+'\t'+json_data['project']+'\n')
+    output.write('Sample: '+'\t'+json_data['sample']+'\n')
+    output.write('Collection: '+'\t'+collection+'\n')
+    output.write('Assembly directory: '+'\t'+json_data['directory']+'\n')
+    output.write('Working directory: '+'\t'+refiningBins_directory+'\n')
+    output.write('\n')
+
+    output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\t'+'\t'.join(['CheckM_#_predicted_genes','CheckM_Translation_table','CheckM_Coding_density','CheckM_Completeness','CheckM_Contamination'])+'\t'+'\t'.join( ['Gtdb_classification','Gtdb_fastani_reference','Gtdb_classification_method'] )+'\n')
+    for binName,key2feature in bin2anvio_summary.items() :
+        output.write(binName)
+        for header in headerAnvioList :
+            output.write('\t'+key2feature[header])
+
+        for header in ['# predicted genes','Translation table','Coding density','Completeness','Contamination'] :
+            output.write('\t'+bin2checkm[binName][header])
+
+            for header in ['Gtdb_classification','Gtdb_fastani_reference','Gtdb_classification_method'] :
+                output.write('\t'+bin2gtdb[binName][header])
+
+        output.write('\n')
+    output.close()
 
 
+    ##########################
+    # creating the bin files #
+    ##########################
+
     ###########
-    # refineM #
-    ###########
+    # refineM
+    genomicOutliers_filename = refiningBins_directory+'/refineM/genomicProperties/outliers/outliers.tsv'
+    taxoOutliers_filename = refiningBins_directory+'/refineM/taxonomy/outliers/taxon_filter.tsv'
+    taxoProfile_dir = refiningBins_directory+'/refineM/taxonomy/profiles/bin_reports'
+
     print('refineM...')
     outliersSet = set()
     scaffold2outlier = dict()
@@ -291,7 +366,7 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
     file.close()
 
     outliersTaxoSet = set()
-    file = open(taxoOutlier_filename,'r')
+    file = open(taxoOutliers_filename,'r')
     for line in file :
         line = line.rstrip()
         if re.match(r'#',line) :
@@ -320,19 +395,15 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
                     refineM_scaffold2info[ scaffold ] = line
                 file.close()
 
-    #########
-    # ANVIO #
-    #########
 
-    bin2scaffold = defaultdict(set)
-    for scaffold,binName in scaffold2bin.items() :
-        bin2scaffold[ binName ].add(scaffold)
-
-    for binName,scaffoldSet in bin2scaffold.items() :
+    #########
+    # ANVIO
+    for binName,scaffold2length in bin2scaffold.items() :
         output_filename = output_dir+'/'+binName+'.tsv'
+        filenameList.append(output_filename)
         output = open(output_filename,'w')
         output.write('scaffold'+'\t'+'bin'+'\t'+'refineM_outlier'+'\t'+'anvio_length'+'\t'+'anvio_gc'+'\t'+'anvio_nb_splits'+'\t'+'anvio_coverage'+'\t'+'anvio_taxonomy'+'\t'+header+'\n')
-        for scaffold in scaffoldSet :
+        for scaffold,length in sorted(scaffold2length.items() , key = lambda x:x[1] , reverse = True ) :
             if scaffold in anvio_scaffold2taxonomy :
                 taxonomy = anvio_scaffold2taxonomy[scaffold]
             else:
@@ -355,9 +426,32 @@ def writingOutput(refiningBins_directory , genomicOutliers_filename, taxoOutlier
             output.write(scaffold+'\t'+binName+'\t'+outlier+'\t'+info+'\t'+taxonomy+'\t'+refineM_info+'\n')
         output.close()
 
+        ###########################
+        # building the excel file #
+        ###########################
+
         # https://towardsdatascience.com/writing-to-excel-with-python-micropython-42cf9541c101
+        xlsx_filename = output_dir+'/'+'collection.xlsx'
 
+        # Create an XlsxWriter workbook object and add a worksheet.
+        book = Workbook(xlsx_filename)
 
+        for filename in filenameList :
+            basename = os.path.basename(filename).replace('.tsv','')
+            sheet = book.add_worksheet(basename)
+            print(filename)
+
+            cpt = 0
+            file = open(filename, 'r')
+            for line in file: # Read the row data from the TSV file and write it to the XLSX file.                
+                line = line.strip()
+                liste = line.split('\t')
+                sheet.write_row(cpt, 0, liste)
+                cpt += 1
+            file.close()
+
+        # Close the XLSX file.
+        book.close()
 
 
 def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
@@ -374,7 +468,9 @@ def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) :
     header = next(file)
     for line in file :
         line = line.rstrip()
-        scaffold,coverage = line.split('\t')
+        liste = line.split('\t')
+        scaffold = liste[0]
+        coverage = liste[1]
         scaffold2info[ scaffold ].append(coverage)
     file.close()
     
@@ -493,7 +589,7 @@ if __name__ == "__main__":
     sample = data['sample']
     profileDb_filename = data['profileDb_filename']
     contigDb_filename = data['contigDb_filename']
-    scaffold_filename = data['contig_filename']
+    contig_filename = data['contig_filename']
     protein_filename = data['protein_filename']
     bam_filename = data['bam_filename']
     bai_filename = data['bai_filename']
@@ -523,18 +619,11 @@ if __name__ == "__main__":
     print()
 
 
-    #####################
-    # refining the bins #
-    #####################
-
     refiningBins_directory = directory+'/'+'refinedBins'
     if os.path.exists(refiningBins_directory) :
         print(refiningBins_directory+' already exist, please remove it first')
         sys.exit(refiningBins_directory+' already exist, please remove it first')
     os.mkdir(refiningBins_directory)
-
-
-
 
 
     #################
@@ -559,36 +648,40 @@ if __name__ == "__main__":
         output.write(collection+'\n')
         output.close()
 
-
     bin_dir = anvio_directory+'/'+'bins'
     if os.path.exists(bin_dir) :
         sys.exit(bin_dir+' already exist, please remove it first')
     os.mkdir(bin_dir)
 
+    bin2scaffold = dict()
     scaffold2bin = dict()
     print(bin_dir)
     for root, dirs, files in os.walk(anvi_summarize_directory+'/'+'bin_by_bin', topdown = False):
         for binName in dirs:
-            # if re.match(r'Euk',binName) :
-            #     continue
+            if binName not in bin2scaffold :
+                bin2scaffold[ binName ] = dict()
+
             fasta_filename = anvi_summarize_directory+'/'+'bin_by_bin'+'/'+binName+'/'+binName+'-contigs.fa'
             for record in SeqIO.parse(fasta_filename,'fasta') :
                 scaffold2bin[record.id] = binName
+                bin2scaffold[ binName ][ record.id ] = len(record)
 
             if not os.path.exists(bin_dir+'/'+binName+'.fna') :
                 print(binName+'\t'+fasta_filename)
                 os.symlink(fasta_filename,bin_dir+'/'+binName+'.fna')
 
-
     #  creating an unbinned file
+    bin2scaffold[ 'Unbinned' ] = dict()
     seqList = list()
-    for record in SeqIO.parse(scaffold_filename,'fasta') :
+    for record in SeqIO.parse(contig_filename,'fasta') :
         if record.id in scaffold2bin :
             continue
         if len(record) < 1000 :
             continue
         seqList.append(record)
         scaffold2bin[record.id] = 'Unbinned'
+        bin2scaffold[ 'Unbinned' ][ record.id ] = len(record)
+
     unbinned_filename = bin_dir+'/'+'Unbinned.fna'
     SeqIO.write(seqList,unbinned_filename,'fasta')
 
@@ -622,7 +715,7 @@ if __name__ == "__main__":
     os.mkdir(stat_dir)
 
 
-    cmd = 'source activate refineM-0.1.2 && refinem scaffold_stats -c '+cpu+' '+scaffold_filename+' '+bin_dir+' '+stat_dir+' '+bam_filename+' >/dev/null 2>&1'
+    cmd = 'source activate refineM-0.1.2 && refinem scaffold_stats -c '+cpu+' '+contig_filename+' '+bin_dir+' '+stat_dir+' '+bam_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -721,6 +814,7 @@ if __name__ == "__main__":
 
 
 
+
     ##################
     # step 3: CheckM #
     ##################
@@ -741,6 +835,4 @@ if __name__ == "__main__":
     # writing the results #
     #######################
 
-    output_dir = refiningBins_directory+'/'+'output'
-    os.mkdir(output_dir)    
-    writingOutput( refiningBins_directory , genomicOutliers_filename, taxoOutliers_filename, taxoProfile_dir, anvio_scaffold2info, anvio_scaffold2taxonomy, scaffold2bin, output_dir)
+    writingOutput( data, refiningBins_directory , anvio_scaffold2info, anvio_scaffold2taxonomy, bin2scaffold)
