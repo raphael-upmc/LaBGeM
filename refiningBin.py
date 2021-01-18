@@ -214,14 +214,13 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     file.close()
 
     anvio_genome_coverage_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_across_samples/mean_coverage.txt'
-    file = open(anvio_genome_summary_filename,'r')
+    file = open(anvio_genome_coverage_filename,'r')
     header = next(file).rstrip().split('\t')
     for line in file :
         line = line.rstrip()
         liste = line.split('\t')
         binName = liste[0]
         coverage = liste[2]
-        bin2info[binName] += '\t'+coverage
         bin2anvio_summary[binName]['Anvio_mean_coverage'] = coverage
     file.close()
 
@@ -246,25 +245,27 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     # gtdb
 
     bin2gtdb = dict()
-    gtdb_bac_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.bac120.summary.tsv'
     gtdb_arc_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.ar122.summary.tsv'
+    gtdb_bac_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.bac120.summary.tsv'
+
     for filename in [gtdb_bac_filename,gtdb_arc_filename] :
+        print(filename)
         if not os.path.exists(filename) :
             continue
         else:
             file = open(filename,'r')
             gtdb_headerList = next(file).rstrip().split('\t')
-            del(gtdb_header[0])
             for line in file :
                 line = line.rstrip()
                 liste = line.split('\t')
                 binName = liste[0]
                 if binName not in bin2gtdb :
-                    bin2gtdb[ binName ]
+                    bin2gtdb[ binName ] = dict()
 
-                for i in range(1,len(gtdb_headerList)) :
-                    header = 'Gtdb_'+gtdb_headerList[i].replace(' ','_')
+                for i in range(0,len(gtdb_headerList)) :
+                    header = gtdb_headerList[i]
                     feature = liste[i]
+                    print(str(header)+'\t'+str(feature))
                     bin2gtdb[binName][header] = feature
             file.close()
 
@@ -280,18 +281,18 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     os.mkdir(output_dir)
 
     print('writting outputs in'+output_dir+'...')
-    filenameList.append(output_dir+'/'+'collection.tsv')
+    filenameList.append(output_dir+'/'+'Collection.tsv')
     filenameList.append(output_dir+'/'+'Anvio_summary.tsv')
     filenameList.append(output_dir+'/'+'CheckM.tsv')
     filenameList.append(output_dir+'/'+'GTDBtk.tsv')
 
 
     # Anvio-summary
-
     output = open(output_dir+'/'+'Anvio_summary.tsv','w')
     headerAnvioList = ['Anvio_taxon','Anvio_mean_coverage','Anvio_total_length','Anvio_num_contigs','Anvio_N50','Anvio_GC_content','Anvio_percent_completion','Anvio_percent_redundancy']
     output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\n')
     for binName,key2feature in bin2anvio_summary.items() :
+        output.write(binName)
         for header in headerAnvioList :
             output.write('\t'+key2feature[header])
         output.write('\n')
@@ -299,26 +300,33 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     
     # CheckM
     output = open(output_dir+'/'+'CheckM.tsv','w')
-    output.write( 'Bin'+'\t'+'\t'.join(sorted(list(checkmHeaderSet))+'\n') )
+    output.write( 'Bin'+'\t'+'\t'.join(sorted(list(checkmHeaderSet)))+'\n')
     for binName,key2feature in bin2checkm.items() :
         output.write(binName)
         for header in sorted(list(checkmHeaderSet)) :
-            output.write('\t'+key2feature[header])
+            if header in bin2checkm[binName] :
+                output.write('\t'+str(bin2checkm[binName][header]))
+            else:
+                output.write('\t'+'Na')
         output.write('\n')
     output.close()
 
     # GTDB
+    print(gtdb_headerList)
     output = open(output_dir+'/'+'GTDBtk.tsv','w')
     output.write( 'Bin'+'\t'+'\t'.join(gtdb_headerList)+'\n' )
     for binName,key2feature in bin2gtdb.items() :
         output.write(binName)
         for header in gtdb_headerList :
-            output.write('\t'+key2feature[header])
+            if header in bin2checkm[binName] :
+                output.write('\t'+key2feature[header])
+            else:
+                output.write('\t'+'Na')                                
         output.write('\n')
     output.close()
 
     # Collection
-    output = open(output_dir+'/'+'collection.tsv','w')
+    output = open(output_dir+'/'+'Collection.tsv','w')
     output.write('Project: '+'\t'+json_data['project']+'\n')
     output.write('Sample: '+'\t'+json_data['sample']+'\n')
     output.write('Collection: '+'\t'+collection+'\n')
@@ -333,10 +341,16 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             output.write('\t'+key2feature[header])
 
         for header in ['# predicted genes','Translation table','Coding density','Completeness','Contamination'] :
-            output.write('\t'+bin2checkm[binName][header])
+            if binName in bin2checkm and header in bin2checkm[binName] :
+                output.write('\t'+str(bin2checkm[binName][header]))
+            else :
+                output.write('\t'+'Na')
 
-            for header in ['Gtdb_classification','Gtdb_fastani_reference','Gtdb_classification_method'] :
-                output.write('\t'+bin2gtdb[binName][header])
+        for header in ['classification','fastani_reference','classification_method'] :
+            if binName in bin2checkm and header in bin2gtdb[binName] :
+                output.write('\t'+str(bin2gtdb[binName][header]))
+            else :
+                output.write('\t'+'Na')
 
         output.write('\n')
     output.close()
@@ -345,7 +359,6 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     ##########################
     # creating the bin files #
     ##########################
-
     ###########
     # refineM
     genomicOutliers_filename = refiningBins_directory+'/refineM/genomicProperties/outliers/outliers.tsv'
@@ -396,8 +409,8 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
                 file.close()
 
 
-    #########
-    # ANVIO
+    ############
+    # bin files
     for binName,scaffold2length in bin2scaffold.items() :
         output_filename = output_dir+'/'+binName+'.tsv'
         filenameList.append(output_filename)
@@ -426,32 +439,35 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             output.write(scaffold+'\t'+binName+'\t'+outlier+'\t'+info+'\t'+taxonomy+'\t'+refineM_info+'\n')
         output.close()
 
-        ###########################
-        # building the excel file #
-        ###########################
 
-        # https://towardsdatascience.com/writing-to-excel-with-python-micropython-42cf9541c101
-        xlsx_filename = output_dir+'/'+'collection.xlsx'
 
-        # Create an XlsxWriter workbook object and add a worksheet.
-        book = Workbook(xlsx_filename)
+    ###########################
+    # building the excel file #
+    ###########################
 
-        for filename in filenameList :
-            basename = os.path.basename(filename).replace('.tsv','')
-            sheet = book.add_worksheet(basename)
-            print(filename)
+    # https://towardsdatascience.com/writing-to-excel-with-python-micropython-42cf9541c101
+    xlsx_filename = output_dir+'/'+'Collection.xlsx'
 
-            cpt = 0
-            file = open(filename, 'r')
-            for line in file: # Read the row data from the TSV file and write it to the XLSX file.                
-                line = line.strip()
-                liste = line.split('\t')
-                sheet.write_row(cpt, 0, liste)
-                cpt += 1
-            file.close()
+    # Create an XlsxWriter workbook object and add a worksheet.
+    book = Workbook(xlsx_filename)
 
-        # Close the XLSX file.
-        book.close()
+    print(filenameList)
+    for filename in filenameList :
+        basename = os.path.basename(filename).replace('.tsv','')
+        sheet = book.add_worksheet(basename)
+        # print(filename)
+
+        cpt = 0
+        file = open(filename, 'r')
+        for line in file: # Read the row data from the TSV file and write it to the XLSX file.                
+            line = line.strip()
+            liste = line.split('\t')
+            sheet.write_row(cpt, 0, liste)
+            cpt += 1
+        file.close()
+
+    # Close the XLSX file.
+    book.close()
 
 
 def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
