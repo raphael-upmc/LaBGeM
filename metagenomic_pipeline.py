@@ -5,6 +5,58 @@ from Bio import SeqIO
 import statistics
 from collections import defaultdict
 import argparse
+import json
+
+
+def creatingDatatables(directory) :
+
+    contigDb_filename =   directory+'/'+'contigs.db'
+    profileDb_filename = directory+'/'+'anvio'+'/'+'PROFILE.db'
+
+    datatable_dir = directory+'/'+'datatables'
+    # if datatables isn't prensent, create it #
+    if not os.path.exists(datatable_dir) :
+        os.mkdir(datatable_dir)
+
+    taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
+    if not os.path.exists(taxo_anvio_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-table, exit.')
+
+    gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
+    if not os.path.exists(gene_taxo_anvio_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-table, exit.')
+
+    basic_info_contigs_filename = datatable_dir+'/'+'contigs_basic_info.txt'
+    if not os.path.exists(basic_info_contigs_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-table, exit.')
+
+    coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
+    if not os.path.exists(coverage_contigs_filename) :
+        cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'+' >/dev/null 2>&1'
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status)+'\n')
+        if not status == 0 :
+            sys.exit('something went wrong with anvi-export-splits-and-coverages, exit.')
+        os.rename(datatable_dir+'/'+'tmp-COVs.txt',coverage_contigs_filename)
+        os.remove(datatable_dir+'/'+'tmp-CONTIGS.fa' )
+
+    return coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename
 
 
 def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
@@ -284,20 +336,28 @@ if __name__ == "__main__":
     print('Removing eukaryotic contigs: '+str(args.remove_euk))
 
 
-
     print('\n')
     print('############')
     print('# pipeline #')
     print('############')
     print()
 
+    #############
+    # json data #
+    #############
+
+    json_data = dict()
+    json_data['project'] = project
+    json_data['sample'] = sample
+    json_data['directory'] = args.cwd
+    json_data['assembly_directory'] = cwd
+    json_data['assembly_cmd_line'] = ' '.join(sys.argv)
 
     #################
     # megahit 1.2.9 #
     #################
 
     contig_filename = cwd+'/'+'megahit.contigs.fa'
-
     print('\n')
     print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
     if not os.path.exists(contig_filename) :
@@ -342,6 +402,7 @@ if __name__ == "__main__":
     print('\n')
     print('Renaming the contigs...')
     renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
+    json_data['assembly_contig_filename'] = renamed_contig_filename
     if not os.path.exists(renamed_contig_filename) :
         renamingContigs(contig_filename,renamed_contig_filename,project,sample) # renaming the contigs + checking for funky characters
     print('done')
@@ -367,6 +428,9 @@ if __name__ == "__main__":
     print('Performing coverage profiling using bowtie2...')
     basename = os.path.basename(renamed_contig_filename)
     bam_filename = cwd+'/'+'bt2'+'/'+basename+'.bam'
+
+    json_data['assembly_bam_filename'] = renamed_bam_filename
+    json_data['assembly_bai_filename'] = renamed_bam_filename+'.bai'
 
     if not os.path.exists(bam_filename) :
         print(bam_filename)
@@ -405,6 +469,10 @@ if __name__ == "__main__":
     print('Performing the gene prediction using prodigal...')
     protein_filename = cwd+'/'+'proteins.faa'
     gene_filename = cwd+'/'+'genes.fna'
+
+    json_data['assembly_protein_filename'] = protein_filename
+    json_data['assembly_gene_filename'] = gene_filename
+
     if not os.path.exists(protein_filename) :
         cmd = 'prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
         print(cmd)
@@ -488,6 +556,9 @@ if __name__ == "__main__":
         contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.noEuk.min'+str(length)+'.fa'
     else:
         contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.min'+str(length)+'.fa'
+
+    json_data['anvio_contig_filename'] = contig_filename
+
     if not os.path.exists(contig_filename) :
         output = open(contig_filename,'w')
         for record in SeqIO.parse(renamed_contig_filename,'fasta') :
@@ -526,6 +597,8 @@ if __name__ == "__main__":
     bam2name[fake_bam_filename] = 'fake_profile'
     bam2name[final_bam_filename] = 'genuine_profile'
 
+    json_data['anvio_bam_filename'] = final_bam_filename
+    json_data['anvio_bai_filename'] = final_bam_filename+'.bai'
 
     ###################################
     # creating protein file for ANVIO #
@@ -538,6 +611,7 @@ if __name__ == "__main__":
         parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
     print('done')
 
+    json_data['anvio_protein_filename'] = protein_anvio_filename
 
     print('\ngreat, you have completed the first (and longest) part of the pipeline, now let\'s run the anvio\'s commands')
 
@@ -556,6 +630,7 @@ if __name__ == "__main__":
 
     print('\n\nCreating the contig.db file')
     contig_db_filename = cwd+'/'+'contigs.db'
+    json_data['anvio_contigDb_filename'] = contig_db_filename
     if not os.path.exists(contig_db_filename) :
         cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
         print(cmd)
@@ -611,9 +686,6 @@ if __name__ == "__main__":
 
     additionalDataTable(annot2data,items_filename,splitList)
     print('done')
-
-
-
 
 
     ########################
@@ -690,6 +762,7 @@ if __name__ == "__main__":
     ###############
 
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
+    json_data['anvio_profileDb_filename'] = profile_filename
     if not os.path.exists(profile_filename) :
         cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations --enforce-hierarchical-clustering'
         print(cmd)
@@ -707,6 +780,27 @@ if __name__ == "__main__":
             sys.exit('something went wrong with anvi-import-misc-data, exit')
 
 
+    ###########################
+    # creating the datatables #
+    ###########################    
+    print('\nExporting the datatables...\n')
+    coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename = creatingDatatables(cwd)
+    json_data['anvio_coverage_contigs_filename'] = coverage_contigs_filename
+    json_data['anvio_basic_info_contigs_filename'] = basic_info_contigs_filename
+    json_data['anvio_gene_taxo_filename'] = gene_taxo_anvio_filename
+    json_data['anvio_taxo_filename'] = taxo_anvio_filename
+
+    print('done\n')
+
+
+    #########################
+    # creating the json file #
+    #########################
+    
+    json_filename = directory+'/'+'info.json'
+    output = open("sample.json", "w")
+    json.dump( json_data, output, sort_keys=True, indent=4 )
+    output.close()
 
 
     #####################

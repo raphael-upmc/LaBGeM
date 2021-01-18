@@ -265,10 +265,10 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
                 for i in range(0,len(gtdb_headerList)) :
                     header = gtdb_headerList[i]
                     feature = liste[i]
-                    print(str(header)+'\t'+str(feature))
+                    #print(str(header)+'\t'+str(feature))
                     bin2gtdb[binName][header] = feature
             file.close()
-
+    print(bin2gtdb)
 
 
 
@@ -318,8 +318,8 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     for binName,key2feature in bin2gtdb.items() :
         output.write(binName)
         for header in gtdb_headerList :
-            if header in bin2checkm[binName] :
-                output.write('\t'+key2feature[header])
+            if header in bin2gtdb[binName] :
+                output.write('\t'+bin2gtdb[binName][header])
             else:
                 output.write('\t'+'Na')                                
         output.write('\n')
