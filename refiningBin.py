@@ -10,6 +10,123 @@ from xlsxwriter.workbook import Workbook
 import csv
 
 
+def runningRefineM(refiningBins_directory,refineM_dir, bin_dir,contig_filename,bam_filename,cpu) :
+
+    print('refineM...')
+    os.mkdir(refineM_dir)
+
+    # Removing contaminations based on genomic properties
+    genomic_dir = refineM_dir+'/'+'genomicProperties'
+    if os.path.exists(genomic_dir) :
+        sys.exit(genomic_dir+' already exist, please remove it first')
+    os.mkdir(genomic_dir)
+
+    stat_dir = genomic_dir+'/'+'stats'
+    if os.path.exists(stat_dir) :
+        sys.exit(stat_dir+' already exist, please remove it first')
+    os.mkdir(stat_dir)
+
+
+    cmd = 'source activate refineM-0.1.2 && refinem scaffold_stats -c '+cpu+' '+contig_filename+' '+bin_dir+' '+stat_dir+' '+bam_filename+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not os.path.exists(stat_dir+'/scaffold_stats.tsv'):
+        sys.exit('something went wrong with refinem scaffold_stats, exit')
+
+
+    outliers_dir = genomic_dir+'/'+'outliers'
+    if os.path.exists(outliers_dir) :
+        sys.exit(outliers_dir+' already exist, please remove it first')
+    os.mkdir(outliers_dir)
+
+    cmd = 'source activate refineM-0.1.2 && refinem outliers '+stat_dir+'/scaffold_stats.tsv'+' '+outliers_dir+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with refinem scaffold_stats, exit')
+
+
+    filter_dir = genomic_dir+'/'+'filter'
+    if os.path.exists(filter_dir) :
+        sys.exit(filter_dir+' already exist, please remove it first')
+    os.mkdir(filter_dir)
+
+    genomicOutliers_filename = outliers_dir+'/outliers.tsv'
+    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+genomicOutliers_filename+' '+filter_dir+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with refinem filter_bins, exit')
+    print('\n\n')
+
+
+    # Removing contaminations based on the contig taxonomy
+
+    gene_dir = anvio_directory+'/'+'genes'
+    if os.path.exists(gene_dir) :
+        sys.exit(gene_dir_dir+' already exist, please remove it first')
+    os.mkdir(gene_dir)
+
+    # replace the call cmd line by an housemade function to get the cds,gff,protein files
+    cmd = 'source activate refineM-0.1.2 && refinem call_genes -c '+cpu+' '+bin_dir+' '+gene_dir+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with refinem call_genes, exit')
+
+    reference_taxonomy_filename = '/env/cns/proj/agc/scratch/proj/GTDB/gtdb_r95_taxonomy.2020-07-30.tsv'
+    reference_db_filename = '/env/cns/proj/agc/scratch/proj/GTDB/gtdb_r95_protein_db.2020-07-30.faa.dmnd'
+
+    taxo_dir = refineM_dir+'/'+'taxonomy'
+    if os.path.exists(taxo_dir) :
+        sys.exit(taxo_dir+' already exist, please remove it first')
+    os.mkdir(taxo_dir)
+
+    taxoProfile_dir = taxo_dir+'/'+'profiles'
+    if os.path.exists(taxoProfile_dir) :
+        sys.exit(taxoProfile_dir+' already exist, please remove it first')
+    os.mkdir(taxoProfile_dir)
+
+
+    cmd = 'source activate refineM-0.1.2 && refinem taxon_profile -c '+cpu+' '+gene_dir+' '+stat_dir+'/scaffold_stats.tsv'+' '+reference_db_filename+' '+reference_taxonomy_filename+' '+taxoProfile_dir+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with refinem taxon_profile, exit')
+
+    taxoOutlier_dir = taxo_dir+'/'+'outliers'
+    if os.path.exists(taxoOutlier_dir) :
+        sys.exit(taxoOutlier_dir+' already exist, please remove it first')
+    os.mkdir(taxoOutlier_dir)
+
+
+    taxoOutliers_filename = taxoOutlier_dir+'/'+'taxon_filter.tsv'
+    cmd = 'source activate refineM-0.1.2 && refinem taxon_filter -c '+cpu+' '+taxoProfile_dir+' '+taxoOutliers_filename+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with refinem taxon_filter, exit')
+
+    taxoFilter_dir = taxo_dir+'/'+'filters'
+    if os.path.exists(taxoFilter_dir) :
+        sys.exit(taxoFilter_dir+' already exist, please remove it first')
+    os.mkdir(taxoFilter_dir)
+
+    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+taxoOutliers_filename+' '+taxoFilter_dir+' >/dev/null 2>&1'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with refinem filter_bins, exit')
+
+
+
 def sortingBAM(bam_filename,bai_filename) :
     tmp_bam_filename = bam_filename+'.unsorted'
     os.rename(bam_filename,tmp_bam_filename)
@@ -220,7 +337,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
         line = line.rstrip()
         liste = line.split('\t')
         binName = liste[0]
-        coverage = liste[2]
+        coverage = liste[1]
         bin2anvio_summary[binName]['Anvio_mean_coverage'] = coverage
     file.close()
 
@@ -587,12 +704,14 @@ if __name__ == "__main__":
     else:
         cpu = str(args.cpu)
 
-    # updating the assembly
-    update(directory)
 
+    config_filename = directory+'/'+'assembly'+'/'+'info.json'
+
+    # updating the assembly
+    if not os.path.exists(config_filename) :
+        update(directory)
 
     # loading the json info file
-    config_filename = directory+'/'+'assembly'+'/'+'info.json'
     if not os.path.exists(config_filename) :
         sys.exit(config_filename+' does not exist, exit')
     else:
@@ -646,6 +765,7 @@ if __name__ == "__main__":
     # Step 1: ANVIO #
     #################
 
+    # running anvi-summarize
     anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
     if os.path.exists(anvio_directory) :
         sys.exit(anvio_directory+' already exist, please remove it first')
@@ -664,11 +784,13 @@ if __name__ == "__main__":
         output.write(collection+'\n')
         output.close()
 
+    
     bin_dir = anvio_directory+'/'+'bins'
     if os.path.exists(bin_dir) :
         sys.exit(bin_dir+' already exist, please remove it first')
     os.mkdir(bin_dir)
 
+    # creating a link to the bin contig files
     bin2scaffold = dict()
     scaffold2bin = dict()
     print(bin_dir)
@@ -701,7 +823,7 @@ if __name__ == "__main__":
     unbinned_filename = bin_dir+'/'+'Unbinned.fna'
     SeqIO.write(seqList,unbinned_filename,'fasta')
 
-    # parsing the results
+    # parsing the anvio results
     anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
     anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
@@ -712,122 +834,8 @@ if __name__ == "__main__":
     # step 2: refineM #
     ###################
 
-
-    # Removing contaminations based on genomic properties
-
     refineM_dir = refiningBins_directory+'/'+'refineM'
-    if os.path.exists(refineM_dir) :
-        sys.exit(refineM_dir+' already exist, please remove it first')
-    os.mkdir(refineM_dir)
-
-    genomic_dir = refineM_dir+'/'+'genomicProperties'
-    if os.path.exists(genomic_dir) :
-        sys.exit(genomic_dir+' already exist, please remove it first')
-    os.mkdir(genomic_dir)
-
-    stat_dir = genomic_dir+'/'+'stats'
-    if os.path.exists(stat_dir) :
-        sys.exit(stat_dir+' already exist, please remove it first')
-    os.mkdir(stat_dir)
-
-
-    cmd = 'source activate refineM-0.1.2 && refinem scaffold_stats -c '+cpu+' '+contig_filename+' '+bin_dir+' '+stat_dir+' '+bam_filename+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not os.path.exists(stat_dir+'/scaffold_stats.tsv'):
-        sys.exit('something went wrong with refinem scaffold_stats, exit')
-
-
-    outliers_dir = genomic_dir+'/'+'outliers'
-    if os.path.exists(outliers_dir) :
-        sys.exit(outliers_dir+' already exist, please remove it first')
-    os.mkdir(outliers_dir)
-
-    cmd = 'source activate refineM-0.1.2 && refinem outliers '+stat_dir+'/scaffold_stats.tsv'+' '+outliers_dir+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not status == 0:
-        sys.exit('something went wrong with refinem scaffold_stats, exit')
-
-
-    filter_dir = genomic_dir+'/'+'filter'
-    if os.path.exists(filter_dir) :
-        sys.exit(filter_dir+' already exist, please remove it first')
-    os.mkdir(filter_dir)
-
-    genomicOutliers_filename = outliers_dir+'/outliers.tsv'
-    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+genomicOutliers_filename+' '+filter_dir+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not status == 0:
-        sys.exit('something went wrong with refinem filter_bins, exit')
-    print('\n\n')
-
-
-    # Removing contaminations based on the contig taxonomy
-
-    gene_dir = anvio_directory+'/'+'genes'
-    if os.path.exists(gene_dir) :
-        sys.exit(gene_dir_dir+' already exist, please remove it first')
-    os.mkdir(gene_dir)
-
-    cmd = 'source activate refineM-0.1.2 && refinem call_genes -c '+cpu+' '+bin_dir+' '+gene_dir+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not status == 0:
-        sys.exit('something went wrong with refinem call_genes, exit')
-
-    reference_taxonomy_filename = '/env/cns/proj/agc/scratch/proj/GTDB/gtdb_r95_taxonomy.2020-07-30.tsv'
-    reference_db_filename = '/env/cns/proj/agc/scratch/proj/GTDB/gtdb_r95_protein_db.2020-07-30.faa.dmnd'
-
-    taxo_dir = refineM_dir+'/'+'taxonomy'
-    if os.path.exists(taxo_dir) :
-        sys.exit(taxo_dir+' already exist, please remove it first')
-    os.mkdir(taxo_dir)
-
-    taxoProfile_dir = taxo_dir+'/'+'profiles'
-    if os.path.exists(taxoProfile_dir) :
-        sys.exit(taxoProfile_dir+' already exist, please remove it first')
-    os.mkdir(taxoProfile_dir)
-
-
-    cmd = 'source activate refineM-0.1.2 && refinem taxon_profile -c '+cpu+' '+gene_dir+' '+stat_dir+'/scaffold_stats.tsv'+' '+reference_db_filename+' '+reference_taxonomy_filename+' '+taxoProfile_dir+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not status == 0:
-        sys.exit('something went wrong with refinem taxon_profile, exit')
-
-    taxoOutlier_dir = taxo_dir+'/'+'outliers'
-    if os.path.exists(taxoOutlier_dir) :
-        sys.exit(taxoOutlier_dir+' already exist, please remove it first')
-    os.mkdir(taxoOutlier_dir)
-
-
-    taxoOutliers_filename = taxoOutlier_dir+'/'+'taxon_filter.tsv'
-    cmd = 'source activate refineM-0.1.2 && refinem taxon_filter -c '+cpu+' '+taxoProfile_dir+' '+taxoOutliers_filename+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not status == 0:
-        sys.exit('something went wrong with refinem taxon_filter, exit')
-
-    taxoFilter_dir = taxo_dir+'/'+'filters'
-    if os.path.exists(taxoFilter_dir) :
-        sys.exit(taxoFilter_dir+' already exist, please remove it first')
-    os.mkdir(taxoFilter_dir)
-
-    cmd = 'source activate refineM-0.1.2 && refinem filter_bins '+bin_dir+' '+taxoOutliers_filename+' '+taxoFilter_dir+' >/dev/null 2>&1'
-    print(cmd)
-    status = os.system(cmd)
-    print('status: '+str(status))
-    if not status == 0:
-        sys.exit('something went wrong with refinem filter_bins, exit')
-
+    runningRefineM(refiningBins_directory,refineM_dir, bin_dir,contig_filename,bam_filename,cpu)
 
 
 
@@ -837,6 +845,7 @@ if __name__ == "__main__":
 
     checkm_dir = refiningBins_directory+'/'+'CheckM'
     runningCheckM(checkm_dir,bin_dir,cpu)
+
 
 
     ###################

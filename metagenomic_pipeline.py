@@ -429,8 +429,8 @@ if __name__ == "__main__":
     basename = os.path.basename(renamed_contig_filename)
     bam_filename = cwd+'/'+'bt2'+'/'+basename+'.bam'
 
-    json_data['assembly_bam_filename'] = renamed_bam_filename
-    json_data['assembly_bai_filename'] = renamed_bam_filename+'.bai'
+    json_data['assembly_bam_filename'] = bam_filename
+    json_data['assembly_bai_filename'] = bam_filename+'.bai'
 
     if not os.path.exists(bam_filename) :
         print(bam_filename)
@@ -797,8 +797,8 @@ if __name__ == "__main__":
     # creating the json file #
     #########################
     
-    json_filename = directory+'/'+'info.json'
-    output = open("sample.json", "w")
+    json_filename = cwd+'/'+'info.json'
+    output = open(json_filename, "w")
     json.dump( json_data, output, sort_keys=True, indent=4 )
     output.close()
 
