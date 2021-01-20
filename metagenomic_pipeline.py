@@ -800,6 +800,7 @@ if __name__ == "__main__":
     json_filename = cwd+'/'+'info.json'
     output = open(json_filename, "w")
     json.dump( json_data, output, sort_keys=True, indent=4 )
+    output.write('\n')
     output.close()
 
 
