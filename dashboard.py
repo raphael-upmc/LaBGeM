@@ -131,6 +131,7 @@ app.layout = html.Div([
     ]),
 
     dash_table.DataTable(
+        id='datatable-scaffold',
         data=df.to_dict('records'),
         columns=columns,
         filter_action="native",
@@ -177,6 +178,20 @@ def update_graph(checkboxList,legendValue) :
     return fig
 
 
+
+@app.callback(
+    Output('datatable-scaffold', 'data'),
+    Input('boxplot-coverage', 'selectedData'),
+    Input('xaxis-column', 'value')
+)
+
+def update_datatable(checkboxList,selectedDataB):
+    print('\n\n')
+    print('updating the datatable')
+    print( 'You have selected "{}"'.format(checkboxList) )
+    print( 'You have selected "{}"'.format(selectedData) )
+    dff = df[ df['bin'].isin(checkboxList) ]
+    return dff.to_dict('records')
 
 
 

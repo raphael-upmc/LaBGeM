@@ -175,6 +175,34 @@ def update(directory) :
 
     project,sample = getProjectSampleNames(scaffold_filename)
 
+
+    for root, dirs, files in os.walk(directory+'/'+'assembly'+'/'+'bt2', topdown = False):
+        for filename in files :
+            if re.search(r'sorted',filename) :
+                if re.search(r'.sorted.fake.bam$',filename) :
+                    continue
+                if re.search(r'.sorted.fake.bam.bai$',filename) :
+                    continue
+
+                if re.search(r'.sorted.bam$',filename) :
+                    anvio_bam_filename = root+'/'+filename
+#                    print(anvio_bam_filename)
+
+                if re.search(r'.sorted.bam.bai$',filename) :
+                    anvio_bai_filename = root+'/'+filename
+#                    print(anvio_bai_filename)
+
+#    print('\n\n')
+#    print('looking for anvio contig filename...')
+    for root, dirs, files in os.walk(directory+'/'+'assembly', topdown = True):
+        if os.path.abspath(root) != os.path.abspath(directory+'/'+'assembly') :
+            continue
+        for filename in files :
+            if re.search(r'^megahit.contigs.renamed',filename) and filename != 'megahit.contigs.renamed.fa' :
+                anvio_contig_filename = root+'/'+filename
+#    print(anvio_contig_filename)
+#    sys.exit()
+
     datatable_dir = directory+'/'+'assembly'+'/'+'datatables'
     # if datatables isn't prensent, create it #
     if not os.path.exists(datatable_dir) :
@@ -232,17 +260,24 @@ def update(directory) :
     output.write('{'+'\n')
     output.write('\t\"project\":\"'+project+'\",\n')
     output.write('\t\"sample\":\"'+sample+'\",\n')
-    output.write('\t\"directory\":\"'+directory+'/'+'assembly'+'\",\n')
-    output.write('\t\"contig_filename\":\"'+directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'+'\",\n')
-    output.write('\t\"protein_filename\":\"'+directory+'/'+'assembly'+'/'+'proteins.anvio.tab'+'\",\n')
-    output.write('\t\"bam_filename\":\"'+bam_filename+'\",\n')
-    output.write('\t\"bai_filename\":\"'+bai_filename+'\",\n')
-    output.write('\t\"contigDb_filename\":\"'+directory+'/'+'assembly'+'/'+'contigs.db'+'\",\n')
-    output.write('\t\"profileDb_filename\":\"'+directory+'/'+'assembly'+'/'+'anvio'+'/'+'PROFILE.db'+'\",\n')
-    output.write('\t\"coverage_contigs_filename\":\"'+coverage_contigs_filename+'\",\n')
-    output.write('\t\"basic_info_contigs_filename\":\"'+basic_info_contigs_filename+'\",\n')
-    output.write('\t\"gene_taxo_anvio_filename\":\"'+gene_taxo_anvio_filename+'\",\n')
-    output.write('\t\"taxo_anvio_filename\":\"'+taxo_anvio_filename+'\"\n')
+    output.write('\t\"directory\":\"'+directory+'\",\n')
+    output.write('\t\"assembly_cmd_line\":\"'+'Na'+'\",\n') # ??
+    output.write('\t\"assembly_directory\":\"'+directory+'/'+'assembly'+'\",\n')
+    output.write('\t\"assembly_contig_filename\":\"'+directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'+'\",\n')
+    output.write('\t\"assembly_bam_filename\":\"'+bam_filename+'\",\n')
+    output.write('\t\"assembly_bai_filename\":\"'+bai_filename+'\",\n')
+    output.write('\t\"assembly_protein_filename\":\"'+directory+'/'+'assembly'+'/'+'proteins.faa'+'\",\n')
+    output.write('\t\"assembly_gene_filename\":\"'+directory+'/'+'assembly'+'/'+'genes.fna'+'\",\n')
+    output.write('\t\"anvio_bai_filename\":\"'+anvio_bai_filename+'\",\n')
+    output.write('\t\"anvio_bam_filename\":\"'+anvio_bam_filename+'\",\n')
+    output.write('\t\"anvio_contig_filename\":\"'+directory+'/'+'assembly'+'/'+'megahit.contigs.renamed.fa'+'\",\n') # ??
+    output.write('\t\"anvio_protein_filename\":\"'+directory+'/'+'assembly'+'/'+'proteins.anvio.tab'+'\",\n')
+    output.write('\t\"anvio_contigDb_filename\":\"'+directory+'/'+'assembly'+'/'+'contigs.db'+'\",\n')
+    output.write('\t\"anvio_profileDb_filename\":\"'+directory+'/'+'assembly'+'/'+'anvio'+'/'+'PROFILE.db'+'\",\n')
+    output.write('\t\"anvio_coverage_contigs_filename\":\"'+coverage_contigs_filename+'\",\n')
+    output.write('\t\"anvio_basic_info_contigs_filename\":\"'+basic_info_contigs_filename+'\",\n')
+    output.write('\t\"anvio_gene_taxo_anvio_filename\":\"'+gene_taxo_anvio_filename+'\",\n')
+    output.write('\t\"anvio_taxo_filename\":\"'+taxo_anvio_filename+'\"\n')
     output.write('}'+'\n')
     output.close()
 
@@ -366,7 +401,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     gtdb_bac_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.bac120.summary.tsv'
 
     for filename in [gtdb_bac_filename,gtdb_arc_filename] :
-        print(filename)
+#        print(filename)
         if not os.path.exists(filename) :
             continue
         else:
@@ -385,7 +420,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
                     #print(str(header)+'\t'+str(feature))
                     bin2gtdb[binName][header] = feature
             file.close()
-    print(bin2gtdb)
+#    print(bin2gtdb)
 
 
 
@@ -447,7 +482,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     output.write('Project: '+'\t'+json_data['project']+'\n')
     output.write('Sample: '+'\t'+json_data['sample']+'\n')
     output.write('Collection: '+'\t'+collection+'\n')
-    output.write('Assembly directory: '+'\t'+json_data['directory']+'\n')
+    output.write('Assembly directory: '+'\t'+json_data['assembly_directory']+'\n')
     output.write('Working directory: '+'\t'+refiningBins_directory+'\n')
     output.write('\n')
 
@@ -464,7 +499,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
                 output.write('\t'+'Na')
 
         for header in ['classification','fastani_reference','classification_method'] :
-            if binName in bin2checkm and header in bin2gtdb[binName] :
+            if binName in bin2gtdb and header in bin2gtdb[binName] :
                 output.write('\t'+str(bin2gtdb[binName][header]))
             else :
                 output.write('\t'+'Na')
@@ -619,6 +654,7 @@ def detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , pro
     for line in file :
         line = line.rstrip()
         liste = line.split('\t')
+
         geneId = liste[0]
         scaffold = liste[1]
         gene2scaffold[ geneId ] = scaffold
@@ -722,16 +758,17 @@ if __name__ == "__main__":
 
     project = data['project']
     sample = data['sample']
-    profileDb_filename = data['profileDb_filename']
-    contigDb_filename = data['contigDb_filename']
-    contig_filename = data['contig_filename']
-    protein_filename = data['protein_filename']
-    bam_filename = data['bam_filename']
-    bai_filename = data['bai_filename']
-    coverage_contigs_filename = data['coverage_contigs_filename']
-    basic_info_contigs_filename = data['basic_info_contigs_filename']
-    gene_taxo_anvio_filename = data['gene_taxo_anvio_filename']
-    taxo_anvio_filename = data['taxo_anvio_filename']
+    profileDb_filename = data['anvio_profileDb_filename']
+    contigDb_filename = data['anvio_contigDb_filename']
+    contig_filename = data['assembly_contig_filename']
+    protein_filename = data['assembly_protein_filename']
+    anvio_protein_filename = data['anvio_protein_filename']
+    bam_filename = data['assembly_bam_filename']
+    bai_filename = data['assembly_bai_filename']
+    coverage_contigs_filename = data['anvio_coverage_contigs_filename']
+    basic_info_contigs_filename = data['anvio_basic_info_contigs_filename']
+    gene_taxo_anvio_filename = data['anvio_gene_taxo_anvio_filename']
+    taxo_anvio_filename = data['anvio_taxo_filename']
 
 
 
@@ -824,7 +861,8 @@ if __name__ == "__main__":
     SeqIO.write(seqList,unbinned_filename,'fasta')
 
     # parsing the anvio results
-    anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , protein_filename )
+
+    anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , anvio_protein_filename )
     anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
 

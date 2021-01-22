@@ -787,7 +787,7 @@ if __name__ == "__main__":
     coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename = creatingDatatables(cwd)
     json_data['anvio_coverage_contigs_filename'] = coverage_contigs_filename
     json_data['anvio_basic_info_contigs_filename'] = basic_info_contigs_filename
-    json_data['anvio_gene_taxo_filename'] = gene_taxo_anvio_filename
+    json_data['anvio_gene_taxo_anvio_filename'] = gene_taxo_anvio_filename
     json_data['anvio_taxo_filename'] = taxo_anvio_filename
 
     print('done\n')
