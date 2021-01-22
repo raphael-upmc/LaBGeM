@@ -181,15 +181,13 @@ def update_graph(checkboxList,legendValue) :
 
 @app.callback(
     Output('datatable-scaffold', 'data'),
-    Input('boxplot-coverage', 'selectedData'),
     Input('xaxis-column', 'value')
 )
 
-def update_datatable(checkboxList,selectedDataB):
+def update_datatable(checkboxList):
     print('\n\n')
     print('updating the datatable')
     print( 'You have selected "{}"'.format(checkboxList) )
-    print( 'You have selected "{}"'.format(selectedData) )
     dff = df[ df['bin'].isin(checkboxList) ]
     return dff.to_dict('records')
 
