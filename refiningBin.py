@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /env/cns/proj/agc/scratch/conda/miniconda3/bin/python
 
 import os,sys,re
 from collections import defaultdict
@@ -130,13 +130,13 @@ def runningRefineM(refiningBins_directory,refineM_dir, bin_dir,contig_filename,b
 def sortingBAM(bam_filename,bai_filename) :
     tmp_bam_filename = bam_filename+'.unsorted'
     os.rename(bam_filename,tmp_bam_filename)
-    cmd = 'samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename+' >/dev/null 2>&1'
+    cmd = 'module load samtools/1.10.2 && samtools sort -@ '+str(cpu)+' -o '+bam_filename+' -O BAM '+tmp_bam_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
 
     # creating the index file
-    cmd = 'samtools index '+bam_filename+' >/dev/null 2>&1'
+    cmd = 'module load samtools/1.10.2 && samtools index '+bam_filename+' >/dev/null 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')

@@ -1,4 +1,4 @@
-#! /usr/bin/python3
+#! /env/cns/proj/agc/scratch/conda/miniconda3/bin/python
 
 import os,sys,re
 from Bio import SeqIO
@@ -67,14 +67,14 @@ def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
     kaiju_filename = cwd+'/'+'taxonomy'+'/'+'all_kaiju.output'
     kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'all_kaiju-addTaxonNames.output'
 
-    cmd = 'kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
+    cmd = 'source activate metagenomics-v1 && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
     print('\t'+cmd)
     status = os.system(cmd)
     print('\t'+'status :'+str(status))
     if not status == 0:
         sys.exit('something went wrong with kaiju, exit')
 
-    cmd = 'kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
+    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
     print('\t'+cmd)
     status = os.system(cmd)
     print('\t'+'status :'+str(status))
@@ -135,7 +135,7 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
 
     # converting the bam to a sam file
     tmp_sam_filename = bam_filename+'.tmp.sam'
-    cmd = 'samtools view -h '+bam_filename+' -o '+tmp_sam_filename
+    cmd = 'source activate metagenomics-v1 &&  samtools view -h '+bam_filename+' -o '+tmp_sam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -170,7 +170,7 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
 
 
     # creating and sorting a bam file 
-    cmd = 'samtools view -Sb '+' '+tmp_filename+' | samtools sort -@ '+str(cpu)+' -o'+final_bam_filename
+    cmd = 'source activate metagenomics-v1 && samtools view -Sb '+' '+tmp_filename+' | samtools sort -@ '+str(cpu)+' -o'+final_bam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -181,7 +181,7 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
     os.remove(tmp_filename)
 
     # creating the index file
-    cmd = 'samtools index '+final_bam_filename
+    cmd = 'source activate metagenomics-v1 && samtools index '+final_bam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -361,7 +361,7 @@ if __name__ == "__main__":
     print('\n')
     print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
     if not os.path.exists(contig_filename) :
-        cmd = 'megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
+        cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -390,7 +390,6 @@ if __name__ == "__main__":
 
         if not os.path.exists(cwd+'/'+'taxonomy') :
             os.mkdir(cwd+'/'+'taxonomy')
-
     print('done')
 
 
@@ -435,14 +434,14 @@ if __name__ == "__main__":
     if not os.path.exists(bam_filename) :
         print(bam_filename)
 
-        cmd = 'bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
+        cmd = 'source activate metagenomics-v1 && bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
         print(cmd)
         status = os.system(cmd)
         print(status)
         if not status == 0:
             sys.exit('something went wrong with bowtie2-build, exit')
 
-        cmd = 'bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb'+' | '+'samtools sort -@ '+str(cpu)+' -o '+bam_filename
+        cmd = 'source activate metagenomics-v1 && bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb'+' | '+'samtools sort -@ '+str(cpu)+' -o '+bam_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -450,7 +449,7 @@ if __name__ == "__main__":
             sys.exit('something went wrong with bowtie2, exit')
 
         # creating the index file
-        cmd = 'samtools index '+bam_filename
+        cmd = 'source activate metagenomics-v1 && samtools index '+bam_filename
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -474,7 +473,7 @@ if __name__ == "__main__":
     json_data['assembly_gene_filename'] = gene_filename
 
     if not os.path.exists(protein_filename) :
-        cmd = 'prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
+        cmd = 'source activate metagenomics-v1 && prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -496,7 +495,7 @@ if __name__ == "__main__":
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
     if not os.path.exists(eukrep_euk_filename) :
-        cmd = 'EukRep.py -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
+        cmd = 'source activate metagenomics-v1 && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
@@ -538,10 +537,14 @@ if __name__ == "__main__":
     contigSet = set()
     liste = list()
     cpt = 1
+    CPT = 1
     for length in sorted(lengthList,reverse=True) :
         #print(str(cpt)+'\t'+str(length))
+        if length > 2900 :
+            CPT += 1
+
         if length < 1000 or cpt > k :
-            break
+            continue
         else:
             cpt += 1
             liste.append(length)
@@ -551,6 +554,7 @@ if __name__ == "__main__":
 
     print('\tLength of '+str(cpt)+'th longuest contig: '+str(length))
     print('\tMedian length of the '+str(cpt)+' longuest contigs: '+str(statistics.median(liste)))
+    print('\tNumber of contigs > 2900: '+str(CPT-1)+' ('+str(sorted(lengthList,reverse=True)[CPT - 1])+')')
 
     if args.remove_euk :
         contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.noEuk.min'+str(length)+'.fa'
@@ -708,14 +712,14 @@ if __name__ == "__main__":
         if not status == 0:
             sys.exit('something went wrong with anvi-get-sequences-for-gene-calls, exit')
 
-        cmd = 'kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
+        cmd = 'source activate metagenomics-v1 && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
         if not status == 0:
             sys.exit('something went wrong with kaiju, exit')
 
-        cmd = 'kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
+        cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
         print(cmd)
         status = os.system(cmd)
         print('status :'+str(status))
@@ -802,6 +806,10 @@ if __name__ == "__main__":
     json.dump( json_data, output, sort_keys=True, indent=4 )
     output.write('\n')
     output.close()
+
+
+    os.chmod(profile_filename, 0o0664 )
+    os.chmod(contig_db_filename, 0o0664 )
 
 
     #####################

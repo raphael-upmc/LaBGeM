@@ -2,14 +2,14 @@
 
 # -*- coding: utf-8 -*-                                                                                                                                                                                                                                                      
 
-
+from collections import defaultdict
 import os,sys,re
 import dash
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.express as px
 import pandas as pd
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_table
 from dash_table.Format import Format, Padding, Scheme
 from dash_table import DataTable, FormatTemplate
@@ -23,8 +23,8 @@ hostname = socket.gethostname()
 ## getting the IP address using socket.gethostbyname() method
 ip_address = socket.gethostbyname(hostname)
 ## printing the hostname and ip_address
-print(f"Hostname: {hostname}")
-print(f"IP Address: {ip_address}")
+print(f"Hostname: {hostname}:8080")
+print(f"IP Address: {ip_address}:8080")
 
 
 binFilenameSet = set()
@@ -36,7 +36,6 @@ for root, dirs, files in os.walk(directory):
             continue
         else:
             binFilenameSet.add(root+'/'+filename)
-            print(root+'/'+filename)
 
 
 binNameSet = set()
@@ -64,13 +63,13 @@ output.close()
 pd.options.display.float_format = '{:,.2f}'.format
 df = pd.read_csv('/env/cns/proj/agc/home/rmeheust/scripts/bins.info',sep="\t")
 
-print(df.dtypes)
+#print(df.dtypes)
 
 percentage = FormatTemplate.percentage(1)
 
 columns = [
     dict(id='scaffold', name='Scaffold'),
-    dict(id='bin', name='Bin Name' , hideable = True),
+    {'id' : 'bin' , 'name' : 'Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
     dict(id='refineM_outlier', name='Outliers'),
     dict(id='anvio_length', name='Length', type='numeric' , hideable = True),
     dict(id='anvio_gc', name='GC %', type='numeric', format=percentage , hideable = True),
@@ -104,7 +103,16 @@ app.layout = html.Div([
     html.H1(children='Hello Dash'),
     html.Div(children='Dash: A web application framework for Python.'),
 
+
+    html.H2(children='Scatter plots'),
     html.Div([
+
+        dcc.Checklist(
+            id='xaxis-column',
+            options=options,
+            value=list(binNameSet)
+        ),
+        
         dcc.Dropdown(
             id='legend-dropdown',
             options=[
@@ -119,78 +127,70 @@ app.layout = html.Div([
             ],
             value='anvio_taxonomy'
         ),
+
         dcc.Graph(id='boxplot-coverage',figure=fig)
+
     ]),
 
+    html.H2(children='Datatable'),
     html.Div([
-        dcc.Checklist(
-            id='xaxis-column',
-            options=options,
-            value=list(binNameSet)
-        )
+        dash_table.DataTable(
+            id='datatable-scaffold',
+            data=df.to_dict('records'),
+            columns=columns,
+            style_cell={
+                'textAlign': 'left',
+            },        
+            style_as_list_view=True,
+            style_data_conditional=[
+                {
+                    'if': {'row_index': 'odd'},
+                    'backgroundColor': 'rgb(248, 248, 248)'
+                }
+            ],
+            style_table={'height': '400px', 'overflowY': 'auto'},
+            dropdown={
+                'bin': {
+                    'options': [
+                        {'label': i, 'value': i}
+                        for i in df['bin'].unique()
+                ]
+                }
+            },
+            filter_action="native",
+            sort_action="native",
+            sort_mode="multi",
+            page_size=20,  # we have less data in this example, so setting to 20
+            fixed_rows={'headers': True},
+            style_header={
+                'backgroundColor': 'rgb(230, 230, 230)',
+                'fontWeight': 'bold',
+                'overflow': 'hidden',
+            }
+        ),
     ]),
 
-    dash_table.DataTable(
-        id='datatable-scaffold',
-        data=df.to_dict('records'),
-        columns=columns,
-        filter_action="native",
-        sort_action="native",
-        sort_mode="multi",
-        page_size=20,  # we have less data in this example, so setting to 20
-        fixed_rows={'headers': True},
-        style_header={
-            'backgroundColor': 'rgb(230, 230, 230)',
-            'fontWeight': 'bold',
-            'overflow': 'hidden',
-        },
-        style_cell={
-            'textAlign': 'left',
-        },
-        
-        style_as_list_view=False,
+    html.Div(id='table-dropdown-container'),
 
-        style_data_conditional=[
-            {
-                'if': {'row_index': 'odd'},
-                'backgroundColor': 'rgb(248, 248, 248)'
-            }
-        ],
-        style_table={'height': '400px', 'overflowY': 'auto'}
-    ),
-    
 ])
 
 @app.callback(
     Output('boxplot-coverage', 'figure'),
+    Output('datatable-scaffold', 'data'),
     Input('xaxis-column', 'value'),
     Input('legend-dropdown', 'value')
 )
 
-def update_graph(checkboxList,legendValue) :
-    print('\n\n')
-    print(checkboxList)
+
+def update_graph_datatable(checkboxList,legendValue) :
+    print('\n')
+    print('You have selected: '+str(checkboxList))
     print( 'You have selected "{}"'.format(legendValue) )
+    print('\n')
+
     dff = df[ df['bin'].isin(checkboxList) ]
-    print('dff: '+str(set(dff['bin'])))
-    print(dff.head())
     fig = px.scatter(dff, x="GC", y="Mean coverage", color=legendValue, facet_col="bin", facet_col_wrap=5,hover_name="scaffold", hover_data=["Length (bp)", "family: taxa" , "genus: taxa" , "species: taxa" ])
-    return fig
-
-
-
-@app.callback(
-    Output('datatable-scaffold', 'data'),
-    Input('xaxis-column', 'value')
-)
-
-def update_datatable(checkboxList):
-    print('\n\n')
-    print('updating the datatable')
-    print( 'You have selected "{}"'.format(checkboxList) )
-    dff = df[ df['bin'].isin(checkboxList) ]
-    return dff.to_dict('records')
-
+    return fig,dff.to_dict('records')
 
 
 if __name__ == '__main__':
