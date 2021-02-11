@@ -313,13 +313,16 @@ if __name__ == "__main__":
         k = args.k
 
     noFunkyCharacter = r'^[A-Za-z0-9_]*$'
-    if re.match(noFunkyCharacter, args.sample) and re.match(noFunkyCharacter, args.sample) :
+    if re.match(noFunkyCharacter, args.sample) and re.match(noFunkyCharacter, args.project) :
         sample = args.sample
         project = args.project
     else:
         print(sample)
         print(project)
         sys.exit('Please limit the characters that make up the project and sample names to ASCII letters, digits, and the underscore character')
+
+
+    right = 0o0666
 
     print('\n')
     print('##############')
@@ -352,6 +355,7 @@ if __name__ == "__main__":
     json_data['directory'] = args.cwd
     json_data['assembly_directory'] = cwd
     json_data['assembly_cmd_line'] = ' '.join(sys.argv)
+
 
     #################
     # megahit 1.2.9 #
@@ -650,6 +654,7 @@ if __name__ == "__main__":
         if not status == 0:
             sys.exit('something went wrong with anvi-run-hmms, exit')
 
+    os.chmod(contig_db_filename, right )
     print('done')
 
 
@@ -749,6 +754,7 @@ if __name__ == "__main__":
     profileList = list()
     for bam_filename,name in sorted( bam2name.items() ) :
         profile_filename = cwd+'/'+'profiles'+'/'+name+'/'+'PROFILE.db'
+        auxiliaryData_filename = cwd+'/'+'profiles'+'/'+name+'/'+'AUXILIARY-DATA.db'
         profileList.append(profile_filename)
         if not os.path.exists(profile_filename) :
             cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
@@ -757,6 +763,9 @@ if __name__ == "__main__":
             print('status: '+str(status))
             if not status == 0:
                 sys.exit('something went wrong with anvi-profile, exit')
+
+        os.chmod(profile_filename, right )
+        os.chmod(auxiliaryData_filename, right )
     print('done')
 
 
@@ -807,9 +816,9 @@ if __name__ == "__main__":
     output.write('\n')
     output.close()
 
-
-    os.chmod(profile_filename, 0o0664 )
-    os.chmod(contig_db_filename, 0o0664 )
+    auxiliaryData_filename = cwd+'/'+'anvio'+'/'+'AUXILIARY-DATA.db'
+    os.chmod(profile_filename, right )
+    os.chmod(auxiliaryData_filename, right )
 
 
     #####################

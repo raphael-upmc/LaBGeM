@@ -5,6 +5,7 @@
 from collections import defaultdict
 import os,sys,re
 import dash
+import dash_bootstrap_components as dbc
 import dash_core_components as dcc
 import dash_html_components as html
 import plotly.express as px
@@ -15,6 +16,55 @@ from dash_table.Format import Format, Padding, Scheme
 from dash_table import DataTable, FormatTemplate
 
 
+def checkBinName(binName,sample,project) :
+    if len(binName) == 0 :
+        return False,'please, provide a name','danger'
+
+    noFunkyCharacter = r'^[A-Za-z0-9_]*$'
+    if not re.match(noFunkyCharacter, binName) :
+        return False,'remove the funky characters','danger'
+
+
+    liste = binName.split('__')
+    if len(liste) == 3 :
+        name = liste[0]
+        p = liste[1]
+        s = liste[2]
+        if p != project :
+            return False,'not a project name','danger'
+            print('error')
+        if s != sample :
+            return False,'not a sample name','danger'
+    else:
+        return False,'Please format the bin name as follows: NAME__PROJECT__SAMPLE','danger'
+    
+    return True,'The bin has been renamed','success'
+
+
+def suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
+    if gtdb_lineage != 'Na' :
+        liste = gtdb_lineage.split(';')
+        if re.match(r's\_\_',liste[-1]) :
+            if liste[-1] == 's__' :
+                name = liste[-2].split('__')[1]
+            else:
+                name = liste[-1].split('__')[1].replace(' ','_')
+        else:
+            name = liste[-1].split('__')[1]
+    else:
+        name = anvio_lineage.replace(' ','_')
+    
+        
+    binName = name+'__'+project+'__'+sample
+    # check name redundancy
+    if binName in binName2count :
+        nb = str(binName2count[binName])
+        binName2count[binName] += 1
+        binName = name+'_'+nb+'__'+project+'__'+sample
+
+    else:
+        binName2count[binName] = 1
+    return binName
 
 def create_conditional_style(df,columns):
     style=[]
@@ -68,37 +118,13 @@ for line in file :
     liste[6] = str( float(liste[6])/100.0 )
     liste[7] = str( float(liste[7])/100.0 )
     liste[8] = str( float(liste[8])/100.0 )
-    lineage = liste[14]
-    print(lineage)
-    name = 'TO BE DEFINED'
-    print(name)
-
-    if lineage != 'Na' :
-        liste1 = lineage.split(';')
-        if re.match(r's\_\_',liste1[-1]) :
-            if liste1[-1] == 's__' :
-                name = liste1[-2].split('__')[1]
-            else:
-                name = liste1[-1].split('__')[1].replace(' ','_')
-        else:
-            name = liste1[-1].split('__')[1]
-    else:
-        name = liste[1].replace(' ','_')
-    
-        
-    binName = name+'__'+project+'__'+sample
-    # check name redundancy
-    if binName in binName2count :
-        nb = str(binName2count[binName])
-        binName2count[binName] += 1
-        binName = name+'_'+nb+'__'+project+'__'+sample
-
-    else:
-        binName2count[binName] = 1
+    gtdb_lineage = liste[14]
+    anvio_lineage = liste[1]
+    print(gtdb_lineage)
+    binName = suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count)
 
     liste.append(binName)
     data.append( liste )
-    
 file.close()
 
 output = open('/env/cns/proj/agc/home/rmeheust/scripts/bins.info','w')
@@ -140,24 +166,30 @@ columns = [
 #print(df.head())
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.YETI]) # https://bootswatch.com/default/
 
 app.layout = html.Div([
 
-    html.H1(children='Sample '+sample),
-    html.Div(children='Dash: A web application framework for Python.'),
+    dbc.Row(dbc.Col(html.H1(children='Sample '+sample),
+                    width={'size' : '3' , 'offset' : '1', 'order': '1'}
+                    )
+            ),
+
+    dbc.Row(dbc.Col(html.Div(children='Dash: A web application framework for Python.'))),
 
 
+    dbc.Row(dbc.Col(html.Hr())),
 
-    html.H2(children='Bins summary'),
-    html.Div(id='datatable-output-container'),
+    dbc.Row(dbc.Col(html.H2(children='Bins summary'))),
 
-    html.Hr(),
+    dbc.Row(dbc.Col(html.Div(id='datatable-output-container'))),
 
-    html.H2(children='Rename bin name'),
-    
-    html.Div([
-        html.Div(
+    dbc.Row(dbc.Col(html.Hr())),
+
+    dbc.Row(dbc.Col(html.H2(children='Rename bin name'))),
+
+    dbc.Row([
+        dbc.Col(
             dcc.Dropdown(
                 id='bin-dropdown',
                 options = [
@@ -170,14 +202,13 @@ app.layout = html.Div([
                 clearable=True,
                 persistence=False,
                 persistence_type='memory', # 'memory' (browser tab is refreshed', 'session' (browser tab is closed), 'local' (browser cookies are deleted)
-                style={
-                    'width': '150px', 
-                    'font-size': "100%",
-                },
-            ),
-            style={'display': 'table-cell', 'width':'18%'}),
-    
-        html.Div(
+                # style={
+                #     'width': '300px', 
+                #     'font-size': "100%",
+                # },
+            ),width={'size' : '2' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
+        ),
+        dbc.Col(
             dcc.Input(
                 id='input-1-state', 
                 type='text', 
@@ -187,19 +218,21 @@ app.layout = html.Div([
                 minLength=10,
                 maxLength=50,
                 required=True,
-                size="20",
+                size="50",
                 placeholder='suggested name: XXX',
-                style={
-                    'font-size': "100%",
-                },
-            ),
-        style={'display': 'table-cell', 'width':'50%'}),
+                # style={
+                #     'font-size': "100%",
+                # },
+            ),width={'size' : '3' , 'order': '2'}
+        ),
+        dbc.Col(
+            html.Button(n_clicks=0, children='Submit', id='submit-button-state')
+            ,width={'size' : '2' , 'order': '3'}
+        )
+    ]),
 
-        html.Div(
-            html.Button(n_clicks=0, children='Submit', id='submit-button-state'),
-        style={'display': 'table-cell', 'width':'10%'}),
-    ],style={'display': 'table-cell', 'width':'70%'}),
-    html.Div(id='dd-output-container')
+    dbc.Row(dbc.Col(html.Div(id='dd-output-container'))),
+    dbc.Row(dbc.Col(html.Div(id='dd-submit-container'),width={'size' : '3' , 'offset' : '0'}))
 ])
 
 
@@ -207,6 +240,7 @@ app.layout = html.Div([
 @app.callback(
     dash.dependencies.Output('dd-output-container', 'children'),
     [dash.dependencies.Input('bin-dropdown', 'value')])
+
 def update_output(dd_value):
     if dd_value != None :
         isBin = df["Bin"] == dd_value
@@ -226,32 +260,44 @@ def update_output(dd_value):
             name = df.at[row_index,'Anvio_taxon'].replace(' ','_')
         return 'Suggested name for '+dd_value+': '+name+'__'+project+'__'+sample
     else:
-        return 'Select a bin to get a suggested name'
+        return 'Select the bin you want to rename'
 
 
 
-@app.callback(Output('datatable-output-container', 'children'),
+
+
+
+
+@app.callback([Output('datatable-output-container', 'children'),
+              Output('dd-submit-container', 'children')],
               Input('submit-button-state', 'n_clicks'),
               State('bin-dropdown', 'value'),
               State('input-1-state', 'value'))
 
 
-def update_datatable(n_clicks, input1, input2):
-    if input1 != None :
-        isBin = df["Bin"] == input1
+def update_datatable(n_clicks, selectedBin, binName):
+    if selectedBin != None :
+        isBin = df["Bin"] == selectedBin
         row_index = df.index[isBin].tolist()[0]
 
         print(isBin)
         print(row_index)
         print(df.head())
         print('input: ')
-        print('input 1: '+str(input1))
-        print('input 2: '+str(input2))
+        print('input 1: '+str(selectedBin))
+        print('input 2: '+str(binName))
 
-        # df[row_index]['Name'] = input2
-        df.at[row_index,'Name'] = input2
+
+        result,msg,colorAlert = checkBinName(binName,sample,project) # have to check for redundancy
+
+        if result :
+            df.at[row_index,'Name'] = binName
         print(df.head())
 
+        alertButton = dbc.Alert(msg, color=colorAlert)
+
+    else:
+        alertButton = ''
 
     return [
         dash_table.DataTable(
@@ -284,11 +330,12 @@ def update_datatable(n_clicks, input1, input2):
                 'fontWeight': 'bold',
                 'overflow': 'hidden',
             }
-        )
+        ),
+        alertButton
     ]
     
     
 if __name__ == '__main__':
     print('test')
 
-    app.run_server(host=ip_address,debug=True, port = 8081)
+    app.run_server(host=ip_address,debug=True, port = 8085)
