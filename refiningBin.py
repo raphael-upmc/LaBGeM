@@ -731,7 +731,7 @@ if __name__ == "__main__":
         collection = args.collection
 
     if not os.path.exists(args.cwd) :
-        sys.exit(cwd+' does not exist')
+        sys.exit(args.cwd+' does not exist')
     else:
         directory = os.path.abspath(args.cwd)
 

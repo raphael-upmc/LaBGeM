@@ -18,11 +18,11 @@ from dash_table import DataTable, FormatTemplate
 
 def checkBinName(binName,sample,project) :
     if len(binName) == 0 :
-        return False,'please, provide a name','danger'
+        return False,'Please, provide a name','danger'
 
     noFunkyCharacter = r'^[A-Za-z0-9_]*$'
     if not re.match(noFunkyCharacter, binName) :
-        return False,'remove the funky characters','danger'
+        return False,'Remove the funky characters','danger'
 
 
     liste = binName.split('__')
@@ -31,10 +31,10 @@ def checkBinName(binName,sample,project) :
         p = liste[1]
         s = liste[2]
         if p != project :
-            return False,'not a project name','danger'
+            return False,'Not a project name','danger'
             print('error')
         if s != sample :
-            return False,'not a sample name','danger'
+            return False,'Not a sample name','danger'
     else:
         return False,'Please format the bin name as follows: NAME__PROJECT__SAMPLE','danger'
     
@@ -51,9 +51,10 @@ def suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
                 name = liste[-1].split('__')[1].replace(' ','_')
         else:
             name = liste[-1].split('__')[1]
+        name = name.replace('-','_')
     else:
         name = anvio_lineage.replace(' ','_')
-    
+        name = name.replace('-','_')
         
     binName = name+'__'+project+'__'+sample
     # check name redundancy
@@ -89,8 +90,10 @@ hostname = socket.gethostname()
 ## getting the IP address using socket.gethostbyname() method
 ip_address = socket.gethostbyname(hostname)
 ## printing the hostname and ip_address
-print("Hostname: "+hostname+":8081")
-print(f"IP Address: {ip_address}:8081")
+
+port = str('8085')
+print("Hostname: "+hostname+":"+port)
+print(f"IP Address: {ip_address}:{port}")
 
 
 
@@ -123,7 +126,11 @@ for line in file :
     print(gtdb_lineage)
     binName = suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count)
 
-    liste.append(binName)
+    result,msg,color = checkBinName(binName,sample,project)
+    if result :
+        liste.append(binName)
+    else:
+        liste.append('TO BE DEFINED')
     data.append( liste )
 file.close()
 
@@ -232,8 +239,10 @@ app.layout = html.Div([
     ]),
 
     dbc.Row(dbc.Col(html.Div(id='dd-output-container'))),
-    dbc.Row(dbc.Col(html.Div(id='dd-submit-container'),width={'size' : '3' , 'offset' : '0'}))
-])
+    dbc.Row(dbc.Col(html.Div(id='dd-submit-container'),width={'size' : '3' , 'offset' : '0'})),
+    dbc.Row(dbc.Col(html.Button(n_clicks=0, children='Check and Save', id='save-button-state'),width={'size' : '3'}))
+
+], style={'marginBottom': 50, 'marginTop': 50 , 'marginLeft' : 25})
 
 
 
@@ -287,7 +296,6 @@ def update_datatable(n_clicks, selectedBin, binName):
         print('input 1: '+str(selectedBin))
         print('input 2: '+str(binName))
 
-
         result,msg,colorAlert = checkBinName(binName,sample,project) # have to check for redundancy
 
         if result :
@@ -317,7 +325,7 @@ def update_datatable(n_clicks, selectedBin, binName):
             row_selectable='multi',
             selected_rows = [],
             style_cell_conditional = create_conditional_style(df,columns),
-            style_table={'minWidth': 95 , 'height': '400px', 'overflowY': 'auto'},
+            style_table={'minWidth': 95 , 'overflowY': 'auto'}, # 'height': '250px',
             filter_action="native",
             sort_action="native",
             sort_mode="single",
@@ -338,4 +346,4 @@ def update_datatable(n_clicks, selectedBin, binName):
 if __name__ == '__main__':
     print('test')
 
-    app.run_server(host=ip_address,debug=True, port = 8085)
+    app.run_server(host=ip_address,debug=True, port = int(port))

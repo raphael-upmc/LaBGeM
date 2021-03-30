@@ -357,6 +357,17 @@ if __name__ == "__main__":
     json_data['assembly_cmd_line'] = ' '.join(sys.argv)
 
 
+    ##############################
+    # creating the cwd directory #
+    ##############################
+
+    print('creating '+cwd+' directory...')
+    if os.path.exists(cwd) :
+        sys.exit(cwd+' already exists, remove it first, exit')
+    else:
+        os.mkdir(cwd)
+    print('done\n')
+
     #################
     # megahit 1.2.9 #
     #################
@@ -639,20 +650,19 @@ if __name__ == "__main__":
     print('\n\nCreating the contig.db file')
     contig_db_filename = cwd+'/'+'contigs.db'
     json_data['anvio_contigDb_filename'] = contig_db_filename
-    if not os.path.exists(contig_db_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
-        print(cmd)
-        status = os.system(cmd)
-        print(status)
-        if not status == 0:
-            sys.exit('something went wrong with anvi-gen-contigs-database, exit')
+    cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+    if not status == 0:
+        sys.exit('something went wrong with anvi-gen-contigs-database, exit')
 
-        cmd = 'source activate anvio-6.2 && anvi-run-hmms -c '+contig_db_filename+' -T '+str(cpu)
-        print(cmd)
-        status = os.system(cmd)
-        print(status)
-        if not status == 0:
-            sys.exit('something went wrong with anvi-run-hmms, exit')
+    cmd = 'source activate anvio-6.2 && anvi-run-hmms -c '+contig_db_filename+' -T '+str(cpu)
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+    if not status == 0:
+        sys.exit('something went wrong with anvi-run-hmms, exit')
 
     os.chmod(contig_db_filename, right )
     print('done')
@@ -667,13 +677,12 @@ if __name__ == "__main__":
     print('\n')
     print('Importing the annotations into ANVIO...')
 
-    if not os.path.exists(cwd+'/'+'genes_in_splits.txt') :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'genes_in_splits.txt'
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with anvi-export-table, exit')
+    cmd = 'source activate anvio-6.2 && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'genes_in_splits.txt'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-export-table, exit')
 
     splitList = set()
     contig2split = defaultdict(set)
@@ -708,28 +717,26 @@ if __name__ == "__main__":
     kaiju_filename = cwd+'/'+'taxonomy'+'/'+'kaiju.output'
     kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'kaiju-addTaxonNames.output'
 
-    if not os.path.exists(kaijuTaxon_filename) :
+    cmd = 'source activate anvio-6.2 && anvi-get-sequences-for-gene-calls -c '+contig_db_filename+' -o '+gene_call_filename
+    print(cmd)
+    status = os.system(cmd)
+    print('status :'+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-get-sequences-for-gene-calls, exit')
 
-        cmd = 'source activate anvio-6.2 && anvi-get-sequences-for-gene-calls -c '+contig_db_filename+' -o '+gene_call_filename
-        print(cmd)
-        status = os.system(cmd)
-        print('status :'+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with anvi-get-sequences-for-gene-calls, exit')
+    cmd = 'source activate metagenomics-v1 && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
+    print(cmd)
+    status = os.system(cmd)
+    print('status :'+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with kaiju, exit')
 
-        cmd = 'source activate metagenomics-v1 && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
-        print(cmd)
-        status = os.system(cmd)
-        print('status :'+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with kaiju, exit')
-
-        cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
-        print(cmd)
-        status = os.system(cmd)
-        print('status :'+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with kaiju-addTaxonNames, exit')
+    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
+    print(cmd)
+    status = os.system(cmd)
+    print('status :'+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with kaiju-addTaxonNames, exit')
 
 
 
@@ -755,17 +762,18 @@ if __name__ == "__main__":
     for bam_filename,name in sorted( bam2name.items() ) :
         profile_filename = cwd+'/'+'profiles'+'/'+name+'/'+'PROFILE.db'
         auxiliaryData_filename = cwd+'/'+'profiles'+'/'+name+'/'+'AUXILIARY-DATA.db'
-        profileList.append(profile_filename)
-        if not os.path.exists(profile_filename) :
-            cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
-            print(cmd)
-            status = os.system(cmd)
-            print('status: '+str(status))
-            if not status == 0:
-                sys.exit('something went wrong with anvi-profile, exit')
-
         os.chmod(profile_filename, right )
         os.chmod(auxiliaryData_filename, right )
+        profileList.append(profile_filename)
+        cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
+        print(cmd)
+        status = os.system(cmd)
+        print('status: '+str(status))
+        if not status == 0:
+            sys.exit('something went wrong with anvi-profile, exit')
+
+        # os.chmod(profile_filename, right )
+        # os.chmod(auxiliaryData_filename, right )
     print('done')
 
 
@@ -776,21 +784,20 @@ if __name__ == "__main__":
 
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
     json_data['anvio_profileDb_filename'] = profile_filename
-    if not os.path.exists(profile_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations --enforce-hierarchical-clustering'
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with anvi-merge, exit')
-        print('\n\n')
+    cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations --enforce-hierarchical-clustering'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-merge, exit')
+    print('\n\n')
 
-        cmd = 'source activate anvio-6.2 && anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
-        print(cmd)
-        status = os.system(cmd)
-        print('status: '+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with anvi-import-misc-data, exit')
+    cmd = 'source activate anvio-6.2 && anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-import-misc-data, exit')
 
 
     ###########################
