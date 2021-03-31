@@ -361,11 +361,9 @@ if __name__ == "__main__":
     # creating the cwd directory #
     ##############################
 
-    print('creating '+cwd+' directory...')
+    print('checking if '+cwd+' directory exists...')
     if os.path.exists(cwd) :
         sys.exit(cwd+' already exists, remove it first, exit')
-    else:
-        os.mkdir(cwd)
     print('done\n')
 
     #################
@@ -762,8 +760,6 @@ if __name__ == "__main__":
     for bam_filename,name in sorted( bam2name.items() ) :
         profile_filename = cwd+'/'+'profiles'+'/'+name+'/'+'PROFILE.db'
         auxiliaryData_filename = cwd+'/'+'profiles'+'/'+name+'/'+'AUXILIARY-DATA.db'
-        os.chmod(profile_filename, right )
-        os.chmod(auxiliaryData_filename, right )
         profileList.append(profile_filename)
         cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
         print(cmd)
@@ -771,9 +767,8 @@ if __name__ == "__main__":
         print('status: '+str(status))
         if not status == 0:
             sys.exit('something went wrong with anvi-profile, exit')
-
-        # os.chmod(profile_filename, right )
-        # os.chmod(auxiliaryData_filename, right )
+        os.chmod(profile_filename, right )
+        os.chmod(auxiliaryData_filename, right )
     print('done')
 
 
