@@ -6,7 +6,7 @@ import statistics
 from collections import defaultdict
 import argparse
 import json
-
+import shutil
 
 def creatingDatatables(directory) :
 
@@ -15,8 +15,9 @@ def creatingDatatables(directory) :
 
     datatable_dir = directory+'/'+'datatables'
     # if datatables isn't prensent, create it #
-    if not os.path.exists(datatable_dir) :
-        os.mkdir(datatable_dir)
+    if os.path.exists(datatable_dir) :
+        shutil.rmtree(datatable_dir)
+    os.mkdir(datatable_dir)
 
     taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
     if not os.path.exists(taxo_anvio_filename) :
@@ -363,7 +364,20 @@ if __name__ == "__main__":
 
     print('checking if '+cwd+' directory exists...')
     if os.path.exists(cwd) :
-        sys.exit(cwd+' already exists, remove it first, exit')
+        print(cwd+' already exists, trying to clean up the directory in order to keep the assembly and bowtie mapping...')
+        for root, dirs, files in os.walk(cwd):            
+            for filename in files :
+                if re.search(r'^megahit.contigs',filename) :
+                    if root != cwd :
+                        print(root)
+                        continue
+                    if filename == 'megahit.contigs.renamed.fa' :
+                        continue
+                    if filename == 'megahit.contigs.fa' :
+                        continue
+                    print('removing '+root+'/'+filename+'...')
+                    os.remove(root+'/'+filename)
+
     print('done\n')
 
     #################
@@ -373,38 +387,17 @@ if __name__ == "__main__":
     contig_filename = cwd+'/'+'megahit.contigs.fa'
     print('\n')
     print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
-    if not os.path.exists(contig_filename) :
+    if os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
+        print(contig_filename+' already exists and looks good, keep it')        
+    else:
         cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
         print(cmd)
         status = os.system(cmd)
         print(status)
-        if status == 0 :
-            print('creating the working subdirectories '+cwd)
-            os.mkdir(cwd+'/'+'annotations')
-            os.mkdir(cwd+'/'+'bt2')
-            os.mkdir(cwd+'/'+'profiles')
-            os.mkdir(cwd+'/'+'profiles'+'/'+'fake_profile')
-            os.mkdir(cwd+'/'+'profiles'+'/'+'genuine_profile')
-            os.mkdir(cwd+'/'+'taxonomy')
-        else:
+        if status != 0 :
             sys.exit('something went wrong with megahit, exit')
         print('\n')
-    else:
-        if not os.path.exists(cwd+'/'+'annotations') :
-            os.mkdir(cwd+'/'+'annotations')
-
-        if not os.path.exists(cwd+'/'+'bt2') :
-            os.mkdir(cwd+'/'+'bt2')
-
-        if not os.path.exists(cwd+'/'+'profiles') :
-            os.mkdir(cwd+'/'+'profiles')
-            os.mkdir(cwd+'/'+'profiles'+'/'+'fake_profile')
-            os.mkdir(cwd+'/'+'profiles'+'/'+'genuine_profile')
-
-        if not os.path.exists(cwd+'/'+'taxonomy') :
-            os.mkdir(cwd+'/'+'taxonomy')
     print('done')
-
 
 
     ########################
@@ -415,7 +408,9 @@ if __name__ == "__main__":
     print('Renaming the contigs...')
     renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
     json_data['assembly_contig_filename'] = renamed_contig_filename
-    if not os.path.exists(renamed_contig_filename) :
+    if os.path.exists(renamed_contig_filename) and os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
+        print(contig_filename+' already exists and looks good, keep '+renamed_contig_filename+' as it is')
+    else:
         renamingContigs(contig_filename,renamed_contig_filename,project,sample) # renaming the contigs + checking for funky characters
     print('done')
 
@@ -444,9 +439,29 @@ if __name__ == "__main__":
     json_data['assembly_bam_filename'] = bam_filename
     json_data['assembly_bai_filename'] = bam_filename+'.bai'
 
-    if not os.path.exists(bam_filename) :
-        print(bam_filename)
 
+    if os.path.exists(bam_filename+'.bai') and os.path.exists(bam_filename) and  os.path.exists(renamed_contig_filename) and os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
+        print(contig_filename+' and '+renamed_contig_filename+' already exist and look good, keep '+bam_filename+'.bai and '+bam_filename+' as they are')
+        for root, dirs, files in os.walk(cwd+'/'+'bt2'):
+            for filename in files :
+                if root+'/'+filename == bam_filename :
+                    print('\t'+root+'/'+filename+' already exists, keep it')
+                    continue
+
+                if root+'/'+filename == bam_filename+'.bai' :
+                    print('\t'+root+'/'+filename+' already exists, keep it')
+                    continue
+
+                os.remove(root+'/'+filename)
+        if not os.path.exists(bam_filename+'.bai') or not os.path.exists(bam_filename) :
+            sys.exit('something went wrong when cleaning the bt2 folder, exit')
+
+    else:
+        if os.path.exists(cwd+'/'+'bt2') :
+            shutil.rmtree(cwd+'/'+'bt2')
+        os.mkdir(cwd+'/'+'bt2')
+
+        print(bam_filename)
         cmd = 'source activate metagenomics-v1 && bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
         print(cmd)
         status = os.system(cmd)
@@ -468,9 +483,9 @@ if __name__ == "__main__":
         print('status: '+str(status)+'\n')
         if not status == 0 :
             sys.exit('something went wrong with samtools index, exit.')
-
     print('done')
 
+    sys.exit()
 
 
     ############
@@ -485,13 +500,12 @@ if __name__ == "__main__":
     json_data['assembly_protein_filename'] = protein_filename
     json_data['assembly_gene_filename'] = gene_filename
 
-    if not os.path.exists(protein_filename) :
-        cmd = 'source activate metagenomics-v1 && prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
-        print(cmd)
-        status = os.system(cmd)
-        print(status)
-        if not status == 0:
-            sys.exit('something went wrong with prodigal, exit')
+    cmd = 'source activate metagenomics-v1 && prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+    if not status == 0:
+        sys.exit('something went wrong with prodigal, exit')
     print('done')
 
 
@@ -500,6 +514,11 @@ if __name__ == "__main__":
     # adding annotations #
     ######################
 
+    if os.path.exists(cwd+'/'+'annotations') :
+        shutil.rmtree(cwd+'/'+'annotations')
+
+    os.mkdir(cwd+'/'+'annotations')
+
     # running eukRep
     print('\n')
     print('Adding annotations...')
@@ -507,13 +526,12 @@ if __name__ == "__main__":
     print('\trunning EukRep...')
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
-    if not os.path.exists(eukrep_euk_filename) :
-        cmd = 'source activate metagenomics-v1 && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
-        print(cmd)
-        status = os.system(cmd)
-        print('status :'+str(status))
-        if not status == 0:
-            sys.exit('something went wrong with EukRep.py, exit')
+    cmd = 'source activate metagenomics-v1 && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
+    print(cmd)
+    status = os.system(cmd)
+    print('status :'+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with EukRep.py, exit')
     print('\tdone')
 
     print('done')
@@ -576,18 +594,17 @@ if __name__ == "__main__":
 
     json_data['anvio_contig_filename'] = contig_filename
 
-    if not os.path.exists(contig_filename) :
-        output = open(contig_filename,'w')
-        for record in SeqIO.parse(renamed_contig_filename,'fasta') :
-            if record.id in eukContigSet :
-                continue
+    output = open(contig_filename,'w')
+    for record in SeqIO.parse(renamed_contig_filename,'fasta') :
+        if record.id in eukContigSet :
+            continue
+        else:
+            if len(record) >= length :
+                SeqIO.write(record,output,'fasta')
+                liste.append(len(record))
             else:
-                if len(record) >= length :
-                    SeqIO.write(record,output,'fasta')
-                    liste.append(len(record))
-                else:
-                    continue
-        output.close()
+                continue
+    output.close()
     print('done')
 
 
@@ -601,13 +618,13 @@ if __name__ == "__main__":
     print('Filtering out, indexing and sorting the filename...')
     if args.remove_euk :
         final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.noEuk.min'+str(length)+'.sorted.bam'
-        fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
+        fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.noEuk.min'+str(length)+'.sorted.fake.bam'
     else:
         final_bam_filename = cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.bam'
         fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
 
-    if not os.path.exists(final_bam_filename) :
-        extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
+
+    extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
     print('done')
 
     bam2name = dict()
@@ -624,8 +641,7 @@ if __name__ == "__main__":
     print('\n')
     print('Creating the protein file for ANVIO...')
     protein_anvio_filename = cwd+'/'+'proteins.anvio.tab'
-    if not os.path.exists(protein_anvio_filename) :
-        parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
+    parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
     print('done')
 
     json_data['anvio_protein_filename'] = protein_anvio_filename
@@ -711,6 +727,12 @@ if __name__ == "__main__":
     # running kaiju
     print()
     print('Running Kaiju...')
+
+    if os.path.exists(cwd+'/'+'taxonomy') :
+        shutil.rmtree(cwd+'/'+'taxonomy')
+    os.mkdir(cwd+'/'+'taxonomy')
+
+
     gene_call_filename = cwd+'/'+'gene-calls.fa'
     kaiju_filename = cwd+'/'+'taxonomy'+'/'+'kaiju.output'
     kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'kaiju-addTaxonNames.output'
@@ -756,6 +778,14 @@ if __name__ == "__main__":
 
     print()
     print('Running anvi-profile...')
+
+    if os.path.exists(cwd+'/'+'profiles') :
+        shutil.rmtree(cwd+'/'+'profiles')
+
+    os.mkdir(cwd+'/'+'profiles')
+    os.mkdir(cwd+'/'+'profiles'+'/'+'fake_profile')
+    os.mkdir(cwd+'/'+'profiles'+'/'+'genuine_profile')
+
     profileList = list()
     for bam_filename,name in sorted( bam2name.items() ) :
         profile_filename = cwd+'/'+'profiles'+'/'+name+'/'+'PROFILE.db'
