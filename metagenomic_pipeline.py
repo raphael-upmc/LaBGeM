@@ -485,8 +485,6 @@ if __name__ == "__main__":
             sys.exit('something went wrong with samtools index, exit.')
     print('done')
 
-    sys.exit()
-
 
     ############
     # prodigal #
@@ -548,7 +546,12 @@ if __name__ == "__main__":
 
 
     if args.remove_euk : # removing the euk contigs from the bining step
-        print('\tRemoving eukaryotic contigs')
+        print('\tRemoving eukaryotic contigs and perfomrming kaiju taxonomy')
+
+        if os.path.exists(cwd+'/'+'taxonomy') :
+            shutil.rmtree(cwd+'/'+'taxonomy')
+        os.mkdir(cwd+'/'+'taxonomy')
+
         eukContigSet = removingEukContigs(contig_filename,gene_filename,eukrep_euk_filename)
         print('\tDone')
     else:
