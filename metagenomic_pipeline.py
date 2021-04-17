@@ -8,6 +8,20 @@ import argparse
 import json
 import shutil
 
+
+
+def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu):
+    cmd = 'spades.py -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --sc -o '+output_directory
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+
+    if not status == 0 :
+        sys.exit('something went wrong with spades, exit.')
+
+    output = open(output_directory+'/'+'done','w')
+    output.close()
+
 def creatingDatatables(directory) :
 
     contigDb_filename =   directory+'/'+'contigs.db'
@@ -280,6 +294,7 @@ if __name__ == "__main__":
     parser.add_argument('-cwd', help='the path to the working directory where the assembly folder will be created')
     parser.add_argument('-project', help='the name of the project that will be prefixed in the contig names')
     parser.add_argument('-sample', help='the name of the project that will be prefixed in the contig names')
+    parser.add_argument('-nanopore', help='the path of the nanopore filename NANOPORE_FILENAME that contains the nanopore reads')
     parser.add_argument('-cpu',type=int,default=1,help='number of CPUs used by hhblits (default: 1)')
     parser.add_argument('-k',type=int,default=25000,help='number of contigs to keep for ANVIO (default: 25000)')
     parser.add_argument('-remove-euk',action='store_true',default=False,help='remove the contigs assigned to euk by both kaiju and EukRep')
@@ -322,6 +337,12 @@ if __name__ == "__main__":
         print(project)
         sys.exit('Please limit the characters that make up the project and sample names to ASCII letters, digits, and the underscore character')
 
+    if args.nanopore != None :
+        if os.path.exists(args.nanopore) :
+            nanopore_filename = args.nanopore
+        else:
+            sys.exit(nanopore_filename+' nanopore file does not exist')
+
 
     right = 0o0666
 
@@ -335,6 +356,8 @@ if __name__ == "__main__":
     print('Working directory: '+cwd)
     print('Fastq1: '+fastq1_filename)
     print('Fastq2: '+fastq2_filename)
+    if args.nanopore != None :
+        print('Nanopore: '+nanopore_filename)
     print('Number of CPUs: '+str(cpu))
     print('Number of contigs to consider for ANVIO: '+str(k))
     print('Removing eukaryotic contigs: '+str(args.remove_euk))
@@ -384,20 +407,30 @@ if __name__ == "__main__":
     # megahit 1.2.9 #
     #################
 
-    contig_filename = cwd+'/'+'megahit.contigs.fa'
-    print('\n')
-    print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
-    if os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
-        print(contig_filename+' already exists and looks good, keep it')        
-    else:
-        cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
-        print(cmd)
-        status = os.system(cmd)
-        print(status)
-        if status != 0 :
-            sys.exit('something went wrong with megahit, exit')
+    if args.nanopore == None :
+        contig_filename = cwd+'/'+'megahit.contigs.fa'
         print('\n')
-    print('done')
+        print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
+        if os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
+            print(contig_filename+' already exists and looks good, keep it')        
+        else:
+            cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
+            print(cmd)
+            status = os.system(cmd)
+            print(status)
+            if status != 0 :
+                sys.exit('something went wrong with megahit, exit')
+            print('\n')
+            print('done')
+        renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
+    else:
+        print('\n')
+        print('Performing the hybrid assembly using  spade...') # megahit will create a directory named assembly
+        hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) )
+        print('\n')
+        print('done')
+        contig_filename = cwd+'/'+'contigs.fa'
+        renamed_contig_filename = cwd+'/'+'contigs.renamed.fa'
 
 
     ########################
@@ -406,7 +439,7 @@ if __name__ == "__main__":
 
     print('\n')
     print('Renaming the contigs...')
-    renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
+
     json_data['assembly_contig_filename'] = renamed_contig_filename
     if os.path.exists(renamed_contig_filename) and os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
         print(contig_filename+' already exists and looks good, keep '+renamed_contig_filename+' as it is')
@@ -666,6 +699,10 @@ if __name__ == "__main__":
 
     print('\n\nCreating the contig.db file')
     contig_db_filename = cwd+'/'+'contigs.db'
+    if os.path.exists(contig_db_filename) :
+        print('removing existing contig.db file: '+contig_db_filename)
+        os.remove(contig_db_filename)
+
     json_data['anvio_contigDb_filename'] = contig_db_filename
     cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
     print(cmd)
@@ -809,6 +846,10 @@ if __name__ == "__main__":
     ###############
     # anvio merge #
     ###############
+
+    if os.path.exists(cwd+'/'+'anvio') :
+        shutil.rmtree(cwd+'/'+'anvio')
+    os.mkdir(cwd+'/'+'anvio')
 
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
     json_data['anvio_profileDb_filename'] = profile_filename
