@@ -10,8 +10,28 @@ import shutil
 
 
 
+def megahit(fastq1_filename, fastq2_filename, output_directory,cpu) :
+    if os.path.exists(cwd+'/'+'megahit') :
+        shutil.rmtree(cwd+'/'+'megahit')
+
+    cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+output_directory+'/'+'megahit'+' --out-prefix megahit --num-cpu-threads '+str(cpu)+' --memory 2000'
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+    if status != 0 :
+        sys.exit('something went wrong with megahit, exit')
+
+    # creating a link to contigs.fa
+    os.symlink(output_directory+'/'+'megahit'+'/'+'megahit.contigs.fa', output_directory+'/'+'contigs.fa')
+
+
+
 def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu):
-    cmd = 'spades.py -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --sc -o '+output_directory
+    if os.path.exists(cwd+'/'+'spades') :
+        shutil.rmtree(cwd+'/'+'spades')
+    os.mkdir(cwd+'/'+'spades')
+
+    cmd = 'spades.py -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --sc -o '+output_directory+'/'+'spades'
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -19,8 +39,14 @@ def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_di
     if not status == 0 :
         sys.exit('something went wrong with spades, exit.')
 
-    output = open(output_directory+'/'+'done','w')
+    output = open(output_directory+'/'+'spades'+'/'+'done','w')
     output.close()
+
+    # creating a link to contigs.fa
+    os.symlink(output_directory+'/'+'spades'+'/'+'contigs.fasta', output_directory+'/'+'contigs.fa')
+
+
+
 
 def creatingDatatables(directory) :
 
@@ -369,6 +395,7 @@ if __name__ == "__main__":
     print('############')
     print()
 
+
     #############
     # json data #
     #############
@@ -377,8 +404,9 @@ if __name__ == "__main__":
     json_data['project'] = project
     json_data['sample'] = sample
     json_data['directory'] = args.cwd
-    json_data['assembly_directory'] = cwd
     json_data['assembly_cmd_line'] = ' '.join(sys.argv)
+
+
 
 
     ##############################
@@ -388,49 +416,75 @@ if __name__ == "__main__":
     print('checking if '+cwd+' directory exists...')
     if os.path.exists(cwd) :
         print(cwd+' already exists, trying to clean up the directory in order to keep the assembly and bowtie mapping...')
-        for root, dirs, files in os.walk(cwd):            
-            for filename in files :
-                if re.search(r'^megahit.contigs',filename) :
-                    if root != cwd :
-                        print(root)
-                        continue
-                    if filename == 'megahit.contigs.renamed.fa' :
-                        continue
-                    if filename == 'megahit.contigs.fa' :
-                        continue
-                    print('removing '+root+'/'+filename+'...')
-                    os.remove(root+'/'+filename)
+        # if both megahit and spade were run or will be run, rm the directory
+        if args.nanopore == None and os.path.exists(cwd+'/'+'spades') :
+            shutil.rmtree(cwd)
+            os.mkdir(cwd)
+        elif args.nanopore != None and os.path.exists(cwd+'/'+'megahit') :
+            shutil.rmtree(cwd)
+            os.mkdir(cwd)
+        else:
+            for root , dirs, files in os.walk(cwd):            
+                for filename in files :
+                    if re.search(r'^megahit.contigs',filename) :
+                        if root != cwd :
+                            print(root)
+                            continue
+                        if filename == 'megahit.contigs.renamed.fa' :
+                            continue
+                        if filename == 'megahit.contigs.fa' :
+                            continue
 
+                        print('removing '+root+'/'+filename+'...')
+                        os.remove(root+'/'+filename)
+                    
+                    if re.search(r'^contigs',filename) :
+                        if root != cwd :
+                            print(root)
+                            continue
+                        if filename == 'contigs.renamed.fa' :
+                            continue
+                        if filename == 'contigs.fa' :
+                            continue
+                        print('removing '+root+'/'+filename+'...')
+                        os.remove(root+'/'+filename)
+    else:
+        os.mkdir(cwd)
     print('done\n')
 
-    #################
-    # megahit 1.2.9 #
-    #################
+
+    ############
+    # assembly #
+    ############
 
     if args.nanopore == None :
-        contig_filename = cwd+'/'+'megahit.contigs.fa'
+
         print('\n')
-        print('Performing the assembly using  megahit...') # megahit will create a directory named assembly
-        if os.path.exists(contig_filename) and os.path.exists(cwd+'/'+'done') :
-            print(contig_filename+' already exists and looks good, keep it')        
+        print('Performing the assembly using  Megahit...') # megahit will create a directory named assembly
+        megahit_contig_filename = cwd+'/'+'megahit'+'/'+'megahit.contigs.fa'
+        json_data['assembly_directory'] = cwd+'/'+'megahit'
+        if os.path.exists(megahit_contig_filename) and os.path.exists(cwd+'/'+'megahit'+'/'+'done') :
+            print(megahit_contig_filename+' already exists and looks good, keep it')        
         else:
-            cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+cwd+' --out-prefix megahit --num-cpu-threads '+str(cpu)   ### 1 paired-end library --mem-flag 0
-            print(cmd)
-            status = os.system(cmd)
-            print(status)
-            if status != 0 :
-                sys.exit('something went wrong with megahit, exit')
-            print('\n')
-            print('done')
-        renamed_contig_filename = cwd+'/'+'megahit.contigs.renamed.fa'
-    else:
-        print('\n')
-        print('Performing the hybrid assembly using  spade...') # megahit will create a directory named assembly
-        hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) )
+            megahit(fastq1_filename, fastq2_filename, cwd,str(cpu))
         print('\n')
         print('done')
-        contig_filename = cwd+'/'+'contigs.fa'
-        renamed_contig_filename = cwd+'/'+'contigs.renamed.fa'
+
+    else:
+
+        print('\n')
+        print('Performing the hybrid assembly using  Spades...') # spade will create a directory named assembly
+        spades_contig_filename = cwd+'/'+'spades'+'/'+'contigs.fasta'
+        json_data['assembly_directory'] = cwd+'/'+'spades'
+        if os.path.exists(spades_contig_filename) and os.path.exists(cwd+'/'+'spades'+'/'+'done') :
+            print(spades_contig_filename+' already exists and looks good, keep it')
+        else:
+            hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) )
+        print('\n')
+        print('done')
+
+    contig_filename = cwd+'/'+'contigs.fa'
+    renamed_contig_filename = cwd+'/'+'contigs.renamed.fa'
 
 
     ########################
@@ -624,9 +678,9 @@ if __name__ == "__main__":
     print('\tNumber of contigs > 2900: '+str(CPT-1)+' ('+str(sorted(lengthList,reverse=True)[CPT - 1])+')')
 
     if args.remove_euk :
-        contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.noEuk.min'+str(length)+'.fa'
+        contig_filename = cwd+'/'+'contigs.renamed'+'.noEuk.min'+str(length)+'.fa'
     else:
-        contig_filename = cwd+'/'+'megahit.contigs.renamed'+'.min'+str(length)+'.fa'
+        contig_filename = cwd+'/'+'contigs.renamed'+'.min'+str(length)+'.fa'
 
     json_data['anvio_contig_filename'] = contig_filename
 
@@ -731,7 +785,7 @@ if __name__ == "__main__":
     print('\n')
     print('Importing the annotations into ANVIO...')
 
-    cmd = 'source activate anvio-6.2 && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'genes_in_splits.txt'
+    cmd = 'source activate anvio-6.2 && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'annotations'+'/'+'genes_in_splits.txt'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -740,7 +794,7 @@ if __name__ == "__main__":
 
     splitList = set()
     contig2split = defaultdict(set)
-    file = open(cwd+'/'+'genes_in_splits.txt','r')
+    file = open(cwd+'/'+'annotations'+'/'+'genes_in_splits.txt','r')
     header = next(file)
     for line in file :
         line = line.rstrip()
@@ -773,7 +827,7 @@ if __name__ == "__main__":
     os.mkdir(cwd+'/'+'taxonomy')
 
 
-    gene_call_filename = cwd+'/'+'gene-calls.fa'
+    gene_call_filename = cwd+'/'+'taxonomy'+'/'+'gene-calls.fa'
     kaiju_filename = cwd+'/'+'taxonomy'+'/'+'kaiju.output'
     kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'kaiju-addTaxonNames.output'
 
