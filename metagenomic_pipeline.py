@@ -14,7 +14,7 @@ def megahit(fastq1_filename, fastq2_filename, output_directory,cpu) :
     if os.path.exists(cwd+'/'+'megahit') :
         shutil.rmtree(cwd+'/'+'megahit')
 
-    cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+output_directory+'/'+'megahit'+' --out-prefix megahit --num-cpu-threads '+str(cpu)+' --memory 2000'
+    cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+output_directory+'/'+'megahit'+' --out-prefix megahit --num-cpu-threads '+str(cpu)
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -31,7 +31,7 @@ def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_di
         shutil.rmtree(cwd+'/'+'spades')
     os.mkdir(cwd+'/'+'spades')
 
-    cmd = 'spades.py -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --sc -o '+output_directory+'/'+'spades'
+    cmd = 'source activate metagenomics-v1 && spades.py -m 999 -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --sc -o '+output_directory+'/'+'spades'
     print(cmd)
     status = os.system(cmd)
     print(status)
