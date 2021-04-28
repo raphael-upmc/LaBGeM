@@ -102,7 +102,7 @@ def add_taxonomy(gene_id2gene_db_list,genome_id2taxonomy):
         else:
             element2taxonomy = dict()
             for genome_id in liste:
-                print(len (liste))
+                #print(len (liste))
                 taxonomy = genome_id2taxonomy[genome_id]
                 liste = taxonomy.split(';')
                 keys = ['domain','phylum','classe','ordre','famille','genre','espece']
@@ -281,7 +281,9 @@ def output_file(gene_id2taxonomy,gene_id2percent_identity,gene_id2max,gene_id2co
                 kaiju_taxonomy = "UNKNOWN"
             else:
                 kaiju_taxonomy = anvio_id2taxonomy[anvio_id]
-        
+        else: 
+            kaiju_taxonomy = "NA"
+
         if contig_id not in contig_id2coverage:
             coverage = "NA" 
         else:
@@ -324,12 +326,18 @@ if __name__ == "__main__":
                 sys.exit(marker+' marker not in ribosomal_list, '+str(ribosomal_list))
      
     
+    if args.cwd == None:
+        sys.exit('please provide cwd option')
     if not os.path.exists(args.cwd) :
         sys.exit(cwd+' does not exist, for phaeoexplorer project enter this cwd : "/env/cns/proj/projet_CSD/scratch/assemblies/" ')
     else:
         cwd = os.path.abspath(args.cwd+'/'+sample)
         if not os.path.exists(cwd):
             sys.exit(cwd+' does not exist')
+
+    path_out = cwd+"/taxonomic_composition/"
+    if os.path.exists(path_out) :
+        sys.exit(path_out+' exist, please remove taxonomic_composition ')
             
     
     print('## taxonomic composition pipeline ##')
