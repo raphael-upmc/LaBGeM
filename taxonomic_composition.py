@@ -3,6 +3,7 @@
 
 import os,sys
 from Bio import SeqIO
+import argparse
 
 
 def running_diamond(path_db,path_query,path_out):
@@ -17,8 +18,7 @@ def running_diamond(path_db,path_query,path_out):
     if not status == 0:
         sys.exit('something went wrong with diamond, exit')
         
-        
-    
+            
 def max_hits(result_diamond):
     
     gene_id2max = dict()  
@@ -40,15 +40,13 @@ def max_hits(result_diamond):
         else:
             if score > gene_id2max[gene_id]:
                 gene_id2max[gene_id] = score
-                gene_id2percent_identity[gene_id] = percent_identity
-                   
+                gene_id2percent_identity[gene_id] = percent_identity    
             else:
                 continue
     file.close()
     return gene_id2max,gene_id2percent_identity  
     
-    
-        
+            
 def max_gene_id2genome_id(result_diamond,gene_id2max):
     
     #Retrieve the gene id unique with list of genomes id if the are the same score
@@ -75,7 +73,6 @@ def max_gene_id2genome_id(result_diamond,gene_id2max):
     return gene_id2gene_db_list
 
 
-
 def gtdb_taxonomy_bank(path_taxonomy):
     
     #create dictionary
@@ -90,7 +87,6 @@ def gtdb_taxonomy_bank(path_taxonomy):
             
     file.close()
     return genome_id2taxonomy
-
 
 
 def add_taxonomy(gene_id2gene_db_list,genome_id2taxonomy):
@@ -129,9 +125,7 @@ def add_taxonomy(gene_id2gene_db_list,genome_id2taxonomy):
             gene_id2taxonomy[gene_id] = ';'.join(taxonomy2)
     return gene_id2taxonomy
    
-    
-    
-    
+        
 def gene_id_contigs(result_diamond):
     
     #retrieval gene_id to contig
@@ -149,7 +143,6 @@ def gene_id_contigs(result_diamond):
     return gene_id2contig_id
 
 
-
 def anvio_coverage(contigs_coverage):
     #retrieval the contigs and Anvio covers
     contig_id2coverage = dict()
@@ -163,7 +156,6 @@ def anvio_coverage(contigs_coverage):
         contig_id2coverage[ contig_id ] = cover
     file.close()
     return contig_id2coverage
-
 
 
 def refineM_coverage(contigs_coverage):
@@ -195,8 +187,7 @@ def bin_name(path):
                 
     return contig2bin       
   
-    
-    
+       
 def kaiju_taxonomy(anvio_file,prodigal_file,kaiju_bank):
     
      #Recuperate anvio_id ---> list(contigs, start ,stop)
@@ -264,7 +255,6 @@ def kaiju_taxonomy(anvio_file,prodigal_file,kaiju_bank):
     return prodigale2anvio,anvio_id2taxonomy
 
 
-
 def output_file(gene_id2taxonomy,gene_id2percent_identity,gene_id2max,gene_id2contig_id,contig_id2coverage,contig_id2coverage_refineM,prodigale2anvio,anvio_id2taxonomy,contig2bin):
     
     #writting the output file    
@@ -304,22 +294,54 @@ def output_file(gene_id2taxonomy,gene_id2percent_identity,gene_id2max,gene_id2co
         output.write(gene_id+'\t'+marker_name+'\t'+str(percent_identity)+'\t'+str(bitscore)+'\t'+coverage+'\t'+refineM_coverage+'\t'+taxonomy+'\t'+kaiju_taxonomy+'\t'+bin_name+'\n')
         #print(gene_id+'\t'+marker_name+'\t'+str(percent_identity)+'\t'+str(bitscore)+'\t'+coverage+'\t'+refineM_coverage+'\t'+taxonomy+'\t'+kaiju_taxonomy+'\t'+bin_name+'\n')
     
-    
-    
-    
+        
         
 if __name__ == "__main__":
     
-    ribosomal_name = ['Ribosomal_L1','Ribosomal_L2','Ribosomal_L3','Ribosomal_L4','Ribosomal_L6','Ribosomal_L9_C','Ribosomal_S11','Ribosomal_S20p','Ribosomal_S2','Ribosomal_S3_C','Ribosomal_S6','Ribosomal_S7','Ribosomal_S8','Ribosomal_S9','Ribosomal_L13','Ribosomal_L16','Ribosomal_L17','Ribosomal_L20','Ribosomal_L21p','Ribosomal_L22','ribosomal_L24','Ribosomal_L27A']
     
-    for ribosomal in ribosomal_name:
+    parser = argparse.ArgumentParser(description='Run the taxonomic composition')
+    parser.add_argument('sample', help='the name of the sample that will be analysed')
+    parser.add_argument('--markerlist', help='the name of the marker')
+    parser.add_argument('--cwd', help='the path to the working directory')   
+    args = parser.parse_args()
+    
+    
+    # checking arguments
+    
+    if args.sample == None :
+        sys.exit('please entrer a sample name')
+    else:
+        sample = args.sample
+    
+    
+    ribosomal_list = ['Ribosomal_L1','Ribosomal_L2','Ribosomal_L3','Ribosomal_L4','Ribosomal_L6','Ribosomal_L9_C','Ribosomal_S11','Ribosomal_S20p','Ribosomal_S2','Ribosomal_S3_C','Ribosomal_S6','Ribosomal_S7','Ribosomal_S8','Ribosomal_S9','Ribosomal_L13','Ribosomal_L16','Ribosomal_L17','Ribosomal_L20','Ribosomal_L21p','Ribosomal_L22','ribosomal_L24','Ribosomal_L27A']
+    if args.markerlist == None :
+        markerlist = ribosomal_list                  
+    else:
+        markerlist = args.markerlist.split(',')
+        for marker in markerlist:
+            if marker not in ribosomal_list:
+                sys.exit(marker+' marker not in ribosomal_list, '+str(ribosomal_list))
+     
+    
+    if not os.path.exists(args.cwd) :
+        sys.exit(cwd+' does not exist, for phaeoexplorer project enter this cwd : "/env/cns/proj/projet_CSD/scratch/assemblies/" ')
+    else:
+        cwd = os.path.abspath(args.cwd+'/'+sample)
+        if not os.path.exists(cwd):
+            sys.exit(cwd+' does not exist')
+            
+    
+    print('## taxonomic composition pipeline ##')
+    
+    for ribosomal in markerlist:
         marker = ribosomal
-        sample = 'Dher_U_AS1'
-        path_phaeoexplorer = "/env/cns/proj/projet_CSD/scratch/assemblies/"
+        #sample = 'Dher_U_AS1'
+        #cwd = "/env/cns/proj/projet_CSD/scratch/assemblies/"
     
         path_db = "/env/cns/proj/agc/scratch/conda/miniconda3/envs/anvio-7/lib/python3.6/site-packages/anvio/data/misc/SCG_TAXONOMY/GTDB/SCG_SEARCH_DATABASES/"+marker+".dmnd"
-        path_query = path_phaeoexplorer+sample+"/assembly/proteins.faa"
-        result_diamond = path_phaeoexplorer+sample+"/taxonomic_composition/"+'result_'+marker+'.txt'
+        path_query = cwd+"/assembly/proteins.faa"
+        result_diamond = cwd+"/taxonomic_composition/"+'result_'+marker+'.txt'
     
     
         ### Etape 1 : checking input files
@@ -335,9 +357,8 @@ if __name__ == "__main__":
             print('path_query is exist..')
 
       
-    
         ### Etape 2 : checking output file :
-        path_out = "/env/cns/proj/projet_CSD/scratch/assemblies/"+sample+"/taxonomic_composition/"
+        path_out = cwd+"/taxonomic_composition/"
         if not os.path.exists(path_out) :
             os.mkdir(path_out)
     
@@ -345,11 +366,9 @@ if __name__ == "__main__":
             sys.exit(result_diamond+' already exist, please remove it first')
     
     
-    
         ### Etape 3 :  running diamond
         running_diamond(path_db,path_query,result_diamond)
-        print(result_diamond)
-    
+        print(result_diamond) 
     
    
         ### Etape 4 : recover id genes with max hits
@@ -357,11 +376,9 @@ if __name__ == "__main__":
         gene_id2max,gene_id2percent_identity = max_hits(result_diamond)
     
 
-    
         ### Etape 5 : retreive gene id with liste with liste of genome_id
     
         gene_id2gene_db_list = max_gene_id2genome_id(result_diamond,gene_id2max)
-    
     
     
         ### Etape 6 : retreive gtdb taxonomy
@@ -369,37 +386,33 @@ if __name__ == "__main__":
         path_taxonomy = "/env/cns/proj/agc/scratch_microscope/Data/GTDBtk/707/taxonomy/gtdb_taxonomy.tsv"
         genome_id2taxonomy = gtdb_taxonomy_bank(path_taxonomy)
     
-
     
         ### Etape 7 : assigne gtdb taxonomy
     
         gene_id2taxonomy = add_taxonomy(gene_id2gene_db_list,genome_id2taxonomy)
     
     
-    
         ### Etape 8 : add gene_id ---> contigs
         gene_id2contig_id = gene_id_contigs(result_diamond)
     
     
-    
         ### Etape 9: add anvio coverage "contigs ---> covers":
-        contigs_coverage = "/env/cns/proj/projet_CSD/scratch/assemblies/"+sample+"/assembly/datatables/contigs_coverage_info.txt"
+        contigs_coverage = cwd+"/assembly/datatables/contigs_coverage_info.txt"
         contig_id2coverage = anvio_coverage(contigs_coverage)
     
     
         ### Etape 10 : add RefineM_coverage "contigs ---> covers":
-        contigs_coverage = "/env/cns/proj/projet_CSD/scratch/assemblies/"+sample+"/refinedBins/refineM/genomicProperties/stats/coverage.tsv"
+        contigs_coverage = cwd+"/refinedBins/refineM/genomicProperties/stats/coverage.tsv"
         contig_id2coverage_refineM = refineM_coverage(contigs_coverage)
 
     
         ### Etape 11 : retrieval the contigs and bin_name
-        path= "/env/cns/proj/projet_CSD/scratch/assemblies/"+sample+"/refinedBins/ANVIO/SAMPLES-SUMMARY/bin_by_bin/"
+        path= cwd+"/refinedBins/ANVIO/SAMPLES-SUMMARY/bin_by_bin/"
         contig2bin = bin_name(path)
     
     
         ### Etape 12 : add kaiju taxonomy
-    
-        path_new = "/env/cns/proj/projet_CSD/scratch/assemblies/Dher_U_AS1/assembly/"
+        path_new = cwd+"/assembly"
         anvio_file = path_new +'/proteins.anvio.tab'
         prodigal_file = path_new +'/proteins.faa'
         kaiju_bank = path_new +'/taxonomy/kaiju-addTaxonNames.output'
@@ -408,9 +421,6 @@ if __name__ == "__main__":
     
     
         ### Etape 13 : writting the output file
-        result_diamond = path_phaeoexplorer+sample+"/taxonomic_composition/"+'result_'+marker+'.txt'
+        result_diamond = cwd+"/taxonomic_composition/"+'result_'+marker+'.txt'
         output_file(gene_id2taxonomy,gene_id2percent_identity,gene_id2max,gene_id2contig_id,contig_id2coverage,contig_id2coverage_refineM,prodigale2anvio,anvio_id2taxonomy,contig2bin)  
-    
-
-
   
