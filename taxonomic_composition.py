@@ -182,7 +182,6 @@ def refineM_coverage(contigs_coverage):
     return contig_id2coverage_refineM
 
 
-
 def bin_name(path):
      #retrieval the contigs and bin_name:
     contig2bin = dict()
@@ -196,7 +195,6 @@ def bin_name(path):
                 
     return contig2bin       
   
-    
     
     
 def kaiju_taxonomy(anvio_file,prodigal_file,kaiju_bank):
@@ -264,7 +262,6 @@ def kaiju_taxonomy(anvio_file,prodigal_file,kaiju_bank):
         anvio_id2taxonomy[anvio_id] = kaiju_taxonomy
     file.close()
     return prodigale2anvio,anvio_id2taxonomy
-
 
 
 
