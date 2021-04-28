@@ -91,8 +91,8 @@ def runningRefineM(refiningBins_directory,refineM_dir, bin_dir,contig_filename,b
         sys.exit(taxoProfile_dir+' already exist, please remove it first')
     os.mkdir(taxoProfile_dir)
 
-
-    cmd = 'source activate refineM-0.1.2 && refinem taxon_profile -c '+cpu+' '+gene_dir+' '+stat_dir+'/scaffold_stats.tsv'+' '+reference_db_filename+' '+reference_taxonomy_filename+' '+taxoProfile_dir+' >/dev/null 2>&1'
+    log_filename = refineM_dir+'/'+'taxonomy'+'/'+'taxon_profile.log'
+    cmd = 'source activate refineM-0.1.2 && refinem taxon_profile -c '+cpu+' '+gene_dir+' '+stat_dir+'/scaffold_stats.tsv'+' '+reference_db_filename+' '+reference_taxonomy_filename+' '+taxoProfile_dir+' >'+log_filename+' 2>&1'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -802,6 +802,12 @@ if __name__ == "__main__":
     # Step 1: ANVIO #
     #################
 
+    # get the contig name from the assembly 
+    asmContig2len = dict()
+    for record in SeqIO.parse(contig_filename,'fasta') :
+        asmContig2len[record.id] = len(record)
+
+
     # running anvi-summarize
     anvio_directory = directory+'/'+'refinedBins'+'/'+'ANVIO'
     if os.path.exists(anvio_directory) :
@@ -809,7 +815,7 @@ if __name__ == "__main__":
     else:
         os.mkdir(anvio_directory)
         anvi_summarize_directory = anvio_directory+'/'+'SAMPLES-SUMMARY'
-        cmd = 'source activate anvio-6.2 && anvi-summarize -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+anvi_summarize_directory+' -C '+collection+' >/dev/null 2>&1'
+        cmd = 'source activate anvio-6.2 && anvi-summarize --report-aa-seqs-for-gene-calls -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+anvi_summarize_directory+' -C '+collection+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
@@ -828,7 +834,9 @@ if __name__ == "__main__":
     os.mkdir(bin_dir)
 
     # creating a link to the bin contig files
+    partialScaffold2bin = defaultdict(set)
     bin2scaffold = dict()
+    bin2partialScaffold = defaultdict(set)
     scaffold2bin = dict()
     print(bin_dir)
     for root, dirs, files in os.walk(anvi_summarize_directory+'/'+'bin_by_bin', topdown = False):
@@ -838,12 +846,48 @@ if __name__ == "__main__":
 
             fasta_filename = anvi_summarize_directory+'/'+'bin_by_bin'+'/'+binName+'/'+binName+'-contigs.fa'
             for record in SeqIO.parse(fasta_filename,'fasta') :
-                scaffold2bin[record.id] = binName
-                bin2scaffold[ binName ][ record.id ] = len(record)
+                if record.id not in asmContig2len :
+                    completeScaffold = record.id.split('_partial_')[0]
+                    partialScaffold2bin[completeScaffold].add(binName)
+                    bin2partialScaffold[binName].add(record.id)
 
-            if not os.path.exists(bin_dir+'/'+binName+'.fna') :
-                print(binName+'\t'+fasta_filename)
+                    print(record.id+' ('+str(len(record))+' nt) in '+binName+' does not exist in '+contig_filename+'\t'+completeScaffold+' ('+str(asmContig2len[completeScaffold])+' nt)')
+                else:
+                    scaffold2bin[record.id] = binName
+                    bin2scaffold[ binName ][ record.id ] = len(record)
+                    if int(len(record)) != int(asmContig2len[record.id]) :
+                        print(record.id+' ('+str(len(record))+' nt) ('+str(asmContig2len[record.id])+' nt)')
+
+            if not os.path.exists(bin_dir+'/'+binName+'.fna') and binName not in bin2partialScaffold :
+                #print(binName+'\t'+fasta_filename)
                 os.symlink(fasta_filename,bin_dir+'/'+binName+'.fna')
+    
+    # creating bin files for bins with partial scaffolds
+
+    partialScaffold2seq = dict()
+    for record in SeqIO.parse(contig_filename,'fasta') :
+        if record.id in partialScaffold2seq :
+            partialScaffold2seq[record.id] = record
+        else:
+            continue
+
+    for binname in bin2partialScaffold :
+        print(binName+' contains partial contigs')
+        fasta_filename = anvi_summarize_directory+'/'+'bin_by_bin'+'/'+binName+'/'+binName+'-contigs.fa'
+        output_filename = bin_dir+'/'+binName+'.fna'
+        output = open(output_filename,'w')
+        for record in SeqIO.parse(fasta_filename,'fasta') :
+            if record.id in bin2partialScaffold[binName] : # if contig is partial
+                completeScaffold = record.id.split('_partial_')[0]
+                if len(partialScaffold2bin[completeScaffold]) == 1 :# if partial scaffold in only one bin
+                    SeqIO.write(partialScaffold2seq[completeScaffold],output,'fasta')
+                    scaffold2bin[completeScaffold] = binName
+                    continue
+                else : # else go to the unbinned
+                    continue
+            else:
+                SeqIO.write(record,output,'fasta')
+        output.close()
 
     #  creating an unbinned file
     bin2scaffold[ 'Unbinned' ] = dict()
@@ -866,7 +910,7 @@ if __name__ == "__main__":
     anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
 
-
+    sys.exit()
 
     ###################
     # step 2: refineM #
