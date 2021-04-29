@@ -487,7 +487,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     output.write('Working directory: '+'\t'+refiningBins_directory+'\n')
     output.close()
 
-    output = open(refiningBins_directory+'/'+'Bins_summary.tsv','w')
+    output = open(output_dir+'/'+'Bins_summary.tsv','w')
     output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\t'+'\t'.join(['CheckM_#_predicted_genes','CheckM_Translation_table','CheckM_Coding_density','CheckM_Completeness','CheckM_Contamination'])+'\t'+'\t'.join( ['Gtdb_classification','Gtdb_fastani_reference','Gtdb_classification_method'] )+'\n')
     for binName,key2feature in bin2anvio_summary.items() :
         output.write(binName)
@@ -506,6 +506,17 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             else :
                 output.write('\t'+'Na')
         output.write('\n')
+    output.close()
+
+    scaffold_filename = output_dir+'/'+'partial_scaffolds.tsv'
+    filenameList.append(scaffold_filename)
+    output = open(scaffold_filename,'w')
+    output.write('scaffold'+'\t'+'associated_bins'+'\t'+'final_bin'+'\n')
+    for scaffold,liste in partialScaffold2bin.items() :
+        if len(liste) == 1 :
+            output.write(scaffold+'\t'+','.join(list(liste))+'\t'+list(liste[0])+'\n')
+        else:
+            output.write(scaffold+'\t'+','.join(list(liste))+'\t'+'Unbinned'+'\n')
     output.close()
 
 
@@ -567,6 +578,10 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
                 file.close()
 
 
+    for scaffold,liste in partialScaffold2bin.items() :
+        scaffold2outlier[scaffold] += ',PARTIAL ('+','.join(list(liste))+')'
+
+
     ############
     # bin files
 
@@ -576,7 +591,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             binName = filename.replace('.fna','')
             scaffold2length = dict()
             for record in SeqIO.parse(root+'/'+filename,'fasta') :
-                scaffold2len[record.id] = len(record)
+                scaffold2length[record.id] = len(record)
         
             output_filename = output_dir+'/'+binName+'.tsv'
             filenameList.append(output_filename)
