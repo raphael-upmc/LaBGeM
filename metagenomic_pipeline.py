@@ -115,7 +115,7 @@ def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
     if not status == 0:
         sys.exit('something went wrong with kaiju, exit')
 
-    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
+    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,class,order,family,genus,species'+' -v'
     print('\t'+cmd)
     status = os.system(cmd)
     print('\t'+'status :'+str(status))
@@ -845,7 +845,7 @@ if __name__ == "__main__":
     if not status == 0:
         sys.exit('something went wrong with kaiju, exit')
 
-    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,order,class,family,genus,species'+' -v'
+    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,class,order,family,genus,species'+' -v'
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
