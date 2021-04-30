@@ -514,7 +514,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     output.write('scaffold'+'\t'+'associated_bins'+'\t'+'final_bin'+'\n')
     for scaffold,liste in partialScaffold2bin.items() :
         if len(liste) == 1 :
-            output.write(scaffold+'\t'+','.join(list(liste))+'\t'+list(liste[0])+'\n')
+            output.write(scaffold+'\t'+','.join(list(liste))+'\t'+list(liste)[0]+'\n')
         else:
             output.write(scaffold+'\t'+','.join(list(liste))+'\t'+'Unbinned'+'\n')
     output.close()
