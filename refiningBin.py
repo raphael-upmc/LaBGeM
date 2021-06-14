@@ -352,17 +352,23 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     anvio_summary_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_summary.txt'
     file = open(anvio_summary_filename,'r')
     headerList = next(file).rstrip().split('\t')
+    print(headerList)
     for line in file :
         line = line.rstrip()
         liste = line.split('\t')
+        print(liste)
         binName = liste[0]
         if binName not in bin2anvio_summary :
             bin2anvio_summary[ binName ] = dict()
 
         for i in range(1,len(headerList)) :
             header = 'Anvio_'+headerList[i].replace(' ','_')
-            feature = liste[i]
+            try :
+                feature = liste[i]
+            except:
+                feature = 'Na'
             bin2anvio_summary[binName][header] = feature
+        print(bin2anvio_summary[binName])
     file.close()
 
     anvio_genome_coverage_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_across_samples/mean_coverage.txt'
@@ -446,7 +452,9 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\n')
     for binName,key2feature in bin2anvio_summary.items() :
         output.write(binName)
+        print(binName)
         for header in headerAnvioList :
+            print(header+'\t'+key2feature[header])
             output.write('\t'+key2feature[header])
         output.write('\n')
     output.close()
@@ -560,7 +568,10 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
 
 
     for scaffold,liste in partialScaffold2bin.items() :
-        scaffold2outlier[scaffold] += ',PARTIAL ('+','.join(list(liste))+')'
+        if scaffold in scaffold2outlier :
+            scaffold2outlier[scaffold] += ',PARTIAL ('+','.join(list(liste))+')'
+        else:
+            scaffold2outlier[scaffold] = 'PARTIAL ('+','.join(list(liste))+')'
 
     refineM_scaffold2info = dict()
     for root, dirs, files in os.walk(taxoProfile_dir, topdown = False):
@@ -649,6 +660,188 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
 
     # Close the XLSX file.
     book.close()
+
+
+
+def writingOutputProkaryote(json_data, refiningBins_directory , anvio_scaffold2info, anvio_scaffold2taxonomy , partialScaffold2bin) :
+
+    #################################
+    # assembly and collection info #
+    #################################
+
+    #######################
+    # anvio sample summary
+    collection_filename = refiningBins_directory+'/ANVIO/collection.txt'
+    file = open(collection_filename,'r')
+    for line in file :
+        collection = line.rstrip()
+    file.close()
+
+    bin2anvio_summary = dict()
+    anvio_summary_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_summary.txt'
+    file = open(anvio_summary_filename,'r')
+    headerList = next(file).rstrip().split('\t')
+    for line in file :
+        line = line.rstrip()
+        liste = line.split('\t')
+        binName = liste[0]
+        if binName not in bin2anvio_summary :
+            bin2anvio_summary[ binName ] = dict()
+
+        for i in range(1,len(headerList)) :
+            header = 'Anvio_'+headerList[i].replace(' ','_')
+            feature = liste[i]
+            bin2anvio_summary[binName][header] = feature
+    file.close()
+
+    anvio_genome_coverage_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_across_samples/mean_coverage.txt'
+    file = open(anvio_genome_coverage_filename,'r')
+    header = next(file).rstrip().split('\t')
+    for line in file :
+        line = line.rstrip()
+        liste = line.split('\t')
+        binName = liste[0]
+        coverage = liste[1]
+        bin2anvio_summary[binName]['Anvio_mean_coverage'] = coverage
+    file.close()
+
+
+    ###############
+    # collections #
+    ###############
+
+    filenameList = list()
+    output_dir = refiningBins_directory+'/'+'output' 
+    os.mkdir(output_dir)
+
+    print('writting outputs in'+output_dir+'...')
+    filenameList.append(output_dir+'/'+'Sample_summary.tsv')
+    filenameList.append(output_dir+'/'+'Bins_summary.tsv')
+    filenameList.append(output_dir+'/'+'Anvio_summary.tsv')
+
+    # Anvio-summary
+    output = open(output_dir+'/'+'Anvio_summary.tsv','w')
+    headerAnvioList = ['Anvio_taxon','Anvio_mean_coverage','Anvio_total_length','Anvio_num_contigs','Anvio_N50','Anvio_GC_content','Anvio_percent_completion','Anvio_percent_redundancy']
+    output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\n')
+    for binName,key2feature in bin2anvio_summary.items() :
+        output.write(binName)
+        for header in headerAnvioList :
+            output.write('\t'+key2feature[header])
+        output.write('\n')
+    output.close()
+    
+    # Collection
+    output = open(output_dir+'/'+'Sample_summary.tsv','w')
+    output.write('Project: '+'\t'+json_data['project']+'\n')
+    output.write('Sample: '+'\t'+json_data['sample']+'\n')
+    output.write('Collection: '+'\t'+collection+'\n')
+    output.write('Assembly directory: '+'\t'+json_data['assembly_directory']+'\n')
+    output.write('Working directory: '+'\t'+refiningBins_directory+'\n')
+    output.close()
+
+    output = open(output_dir+'/'+'Bins_summary.tsv','w')
+    output.write('Bin'+'\t'+'\t'.join(headerAnvioList)+'\t'+'\t'.join(['CheckM_#_predicted_genes','CheckM_Translation_table','CheckM_Coding_density','CheckM_Completeness','CheckM_Contamination'])+'\t'+'\t'.join( ['Gtdb_classification','Gtdb_fastani_reference','Gtdb_classification_method'] )+'\n')
+    for binName,key2feature in bin2anvio_summary.items() :
+        output.write(binName)
+        for header in headerAnvioList :
+            output.write('\t'+key2feature[header])
+
+        for header in ['# predicted genes','Translation table','Coding density','Completeness','Contamination'] :
+            output.write('\t'+'Na')
+
+        for header in ['classification','fastani_reference','classification_method'] :
+            output.write('\t'+'Na')
+        output.write('\n')
+    output.close()
+
+    scaffold_filename = output_dir+'/'+'partial_scaffolds.tsv'
+    filenameList.append(scaffold_filename)
+    output = open(scaffold_filename,'w')
+    output.write('scaffold'+'\t'+'associated_bins'+'\t'+'final_bin'+'\n')
+    for scaffold,liste in partialScaffold2bin.items() :
+        if len(liste) == 1 :
+            output.write(scaffold+'\t'+','.join(list(liste))+'\t'+list(liste)[0]+'\n')
+        else:
+            output.write(scaffold+'\t'+','.join(list(liste))+'\t'+'Unbinned'+'\n')
+    output.close()
+
+
+    ##########################
+    # creating the bin files #
+    ##########################
+
+    scaffold2outlier = dict()
+    for scaffold,liste in partialScaffold2bin.items() :
+        if scaffold in scaffold2outlier :
+            scaffold2outlier[scaffold] += ',PARTIAL ('+','.join(list(liste))+')'
+        else:
+            scaffold2outlier[scaffold] = 'PARTIAL ('+','.join(list(liste))+')'
+
+
+    ############
+    # bin files
+
+    bin_directory =  directory+'/'+'refinedBins'+'/'+'ANVIO'+'/'+'bins'
+    for root, dirs, files in os.walk(bin_directory, topdown=False):
+        for filename in files :
+            binName = filename.replace('.fna','')
+            scaffold2length = dict()
+            for record in SeqIO.parse(root+'/'+filename,'fasta') :
+                scaffold2length[record.id] = len(record)
+        
+            output_filename = output_dir+'/'+binName+'.tsv'
+            filenameList.append(output_filename)
+            output = open(output_filename,'w')
+            output.write('scaffold'+'\t'+'bin'+'\t'+'refineM_outlier'+'\t'+'anvio_length'+'\t'+'anvio_gc'+'\t'+'anvio_nb_splits'+'\t'+'anvio_coverage'+'\t'+'anvio_taxonomy'+'\n')
+            for scaffold,length in sorted(scaffold2length.items() , key = lambda x:x[1] , reverse = True ) :
+                if scaffold in anvio_scaffold2taxonomy :
+                    taxonomy = anvio_scaffold2taxonomy[scaffold]
+                else:
+                    taxonomy = 'Na'
+
+                if scaffold in anvio_scaffold2info :
+                    info = '\t'.join(anvio_scaffold2info[ scaffold ])
+                else:
+                    info = 'Na\tNa\tNa\tNa'
+
+                if scaffold in scaffold2outlier :
+                    outlier = scaffold2outlier[scaffold]
+                else :
+                    outlier = '-'
+                output.write(scaffold+'\t'+binName+'\t'+outlier+'\t'+info+'\t'+taxonomy+'\n')
+            output.close()
+
+
+
+    ###########################
+    # building the excel file #
+    ###########################
+
+    # https://towardsdatascience.com/writing-to-excel-with-python-micropython-42cf9541c101
+    xlsx_filename = output_dir+'/'+'Collection.xlsx'
+
+    # Create an XlsxWriter workbook object and add a worksheet.
+    book = Workbook(xlsx_filename)
+
+    print(filenameList)
+    for filename in filenameList :
+        basename = os.path.basename(filename).replace('.tsv','')
+        sheet = book.add_worksheet(basename)
+        # print(filename)
+
+        cpt = 0
+        file = open(filename, 'r')
+        for line in file: # Read the row data from the TSV file and write it to the XLSX file.                
+            line = line.strip()
+            liste = line.split('\t')
+            sheet.write_row(cpt, 0, liste)
+            cpt += 1
+        file.close()
+
+    # Close the XLSX file.
+    book.close()
+
+
 
 
 def gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename ) : # minimum percentage of genes to assign a scaffold to a taxonomic group (default: 20.0)
@@ -800,7 +993,6 @@ if __name__ == "__main__":
     taxo_anvio_filename = data['anvio_taxo_filename']
 
 
-
     print('\n')
     print('##############')
     print('# parameters #')
@@ -822,7 +1014,6 @@ if __name__ == "__main__":
 
     refiningBins_directory = directory+'/'+'refinedBins'
     if os.path.exists(refiningBins_directory) :
-        print(refiningBins_directory+' already exist, please remove it first')
         sys.exit(refiningBins_directory+' already exist, please remove it first')
     os.mkdir(refiningBins_directory)
 
@@ -895,16 +1086,26 @@ if __name__ == "__main__":
         fasta_filename = anvi_summarize_directory+'/'+'bin_by_bin'+'/'+binName+'/'+binName+'-contigs.fa'
         output_filename = bin_dir+'/'+binName+'.fna'
         output = open(output_filename,'w')
+        contigSet = set()
         for record in SeqIO.parse(fasta_filename,'fasta') :
             if record.id in bin2partialScaffold[binName] : # if contig is partial
+                print(record.id+'\t'+'partial'+str(partialScaffold2bin[completeScaffold]))
                 completeScaffold = record.id.split('_partial_')[0]
                 if len(partialScaffold2bin[completeScaffold]) == 1 :# if partial scaffold in only one bin
-                    SeqIO.write(partialScaffold2seq[completeScaffold],output,'fasta')
-                    scaffold2bin[completeScaffold] = binName
-                    continue
+                    print('\tone bin')
+                    if completeScaffold not in contigSet :
+                        contigSet.add(completeScaffold)
+                        SeqIO.write(partialScaffold2seq[completeScaffold],output,'fasta')
+                        scaffold2bin[completeScaffold] = binName
+                        print('\t\tcopy')
+                    else :
+                        print('\t\tdont copy')
+                        continue
                 else : # else go to the unbinned
+                    print('\tseveral bins')
                     continue
             else:
+                print(record.id+'\t'+'ok')
                 SeqIO.write(record,output,'fasta')
         output.close()
 
@@ -922,12 +1123,22 @@ if __name__ == "__main__":
     SeqIO.write(seqList,unbinned_filename,'fasta')
 
     # parsing the anvio results
-
     anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , anvio_protein_filename )
     anvio_scaffold2info = gettingContigInfo(basic_info_contigs_filename, coverage_contigs_filename )
 
 
-#    sys.exit()
+    prokBinSet = set()
+    for root, dirs, files in os.walk(bin_dir) :
+        for filename in files :
+            if filename == 'Unbinned.fna' :
+                continue
+            if re.search(r'^Euk',filename) :
+                continue
+            prokBinSet.add(filename)
+
+    if len(prokBinSet) == 0 :
+        writingOutputProkaryote( data, refiningBins_directory , anvio_scaffold2info, anvio_scaffold2taxonomy , partialScaffold2bin)
+        sys.exit()
 
     ###################
     # step 2: refineM #
