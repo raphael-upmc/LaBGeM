@@ -14,6 +14,22 @@ from dash.dependencies import Input, Output, State
 import dash_table
 from dash_table.Format import Format, Padding, Scheme
 from dash_table import DataTable, FormatTemplate
+import json
+import numpy as np
+
+
+
+
+def checkUniqness(df,row_index,binName) :
+    #df.at[row_index,'Name'] = binName
+    name2count = defaultdict(int)
+    for name in df['Name'] :
+        name2count[name] += 1
+    
+    if binName in name2count :
+        return False,'This bin name already exists','danger'
+    else:
+        return True,'The bin has been renamed','success'
 
 
 def checkBinName(binName,sample,project) :
@@ -37,7 +53,7 @@ def checkBinName(binName,sample,project) :
             return False,'Not a sample name','danger'
     else:
         return False,'Please format the bin name as follows: NAME__PROJECT__SAMPLE','danger'
-    
+
     return True,'The bin has been renamed','success'
 
 
@@ -45,11 +61,18 @@ def suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
     if gtdb_lineage != 'Na' :
         liste = gtdb_lineage.split(';')
         if re.match(r's\_\_',liste[-1]) :
-            if liste[-1] == 's__' :
-                name = liste[-2].split('__')[1]
-            else:
+            if liste[-1] == 's__' : # if gtdb species name is empty, look for genus, family, order, class, phylum, domain name...
+                name = 'Unknown'
+                print(reversed(liste))
+                for taxa in reversed(liste) :
+                    if taxa.split('__')[1] != '' :
+                        name = taxa.split('__')[1]
+                        break
+                    else:
+                        continue
+            else: # if has a gtdb species name then concatenate genus and species name
                 name = liste[-1].split('__')[1].replace(' ','_')
-        else:
+        else: # no species s__ field...
             name = liste[-1].split('__')[1]
         name = name.replace('-','_')
     else:
@@ -62,7 +85,6 @@ def suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
         nb = str(binName2count[binName])
         binName2count[binName] += 1
         binName = name+'_'+nb+'__'+project+'__'+sample
-
     else:
         binName2count[binName] = 1
     return binName
@@ -83,6 +105,8 @@ def create_conditional_style(df,columns):
     return style
 
 
+
+
 ## importing socket module
 import socket
 ## getting the hostname by socket.gethostname() method
@@ -91,28 +115,31 @@ hostname = socket.gethostname()
 ip_address = socket.gethostbyname(hostname)
 ## printing the hostname and ip_address
 
-port = str('8085')
+port = str('8080')
 print("Hostname: "+hostname+":"+port)
 print(f"IP Address: {ip_address}:{port}")
 
 
 
 # -------------------------------------------------------------------------------------------------------------------------- #
+# tab 1 #
 
-collection_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/Ecro_F_AB1/refinedBins/output/Collection.tsv'
-file = open(collection_filename,'r')
-s,project = next(file).strip().split('\t')
-print(project)
-liste = next(file).strip().split('\t')
-sample = liste[1]
-liste = next(file).strip().split('\t')
-liste = next(file).strip().split('\t')
-liste = next(file).strip().split('\t')
-next(file)
+sample = sys.argv[1]
+directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output'
+bins_summary_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output/Bins_summary.tsv'
+
+config_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/assembly/info.json'
+with open(config_filename) as f:
+    data = json.load(f)
+
+project = data['project']
+sample = data['sample']
 
 
 binName2count = dict()
 data = list()
+
+file = open(bins_summary_filename,'r')
 headerList = next(file).rstrip().split('\t')
 headerList.append('Name')
 for line in file :
@@ -134,7 +161,7 @@ for line in file :
     data.append( liste )
 file.close()
 
-output = open('/env/cns/proj/agc/home/rmeheust/scripts/bins.info','w')
+output = open('/env/cns/proj/agc/home/rmeheust/scripts/summary_bins.info','w')
 output.write('\t'.join(headerList)+'\n')
 for elt in data :
     output.write('\t'.join(elt)+'\n')
@@ -142,18 +169,11 @@ output.close()
 
 # Create the pandas DataFrame 
 pd.options.display.float_format = '{:,.2f}'.format
-df = pd.read_csv('/env/cns/proj/agc/home/rmeheust/scripts/bins.info',sep="\t")
-
-# -------------------------------------------------------------------------------------------------------------------------- #
-
-
-
-
-
+df_summary = pd.read_csv('/env/cns/proj/agc/home/rmeheust/scripts/summary_bins.info',sep="\t")
 
 percentage = FormatTemplate.percentage(1)
 
-columns = [
+columns_summary = [
     {'id' : 'Bin' , 'name' : 'id' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': False},
     {'id' : 'Name' , 'name' : 'Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
     dict(id='Anvio_taxon', name='Anvio taxon', hideable = True),
@@ -170,91 +190,300 @@ columns = [
 ]
 
 
-#print(df.head())
+
+# -------------------------------------------------------------------------------------------------------------------------- #
+# tab 2 
+
+binFilenameSet = set()
+filenameSet = set( [ 'Collection.xlsx' , 'Anvio_summary.tsv' , 'CheckM.tsv' , 'GTDBtk.tsv' , 'Bins_summary.tsv' , 'Sample_summary.tsv' , 'partial_scaffolds.tsv' ] )
+for root, dirs, files in os.walk(directory):
+    for filename in files :
+        if filename in filenameSet :
+            continue
+        else:
+            binFilenameSet.add(root+'/'+filename)
+
+
+binNameSet = set()
+data_bin = list()
+for filename in binFilenameSet :
+    lengthSet = set()
+    binNameSet.add(os.path.basename(filename.replace('.tsv','')))
+    file = open(filename,'r')
+    headerList = next(file).rstrip().split('\t')
+    for line in file :
+        line = line.rstrip()
+        data_bin.append(line.split('\t'))
+        lengthSet.add(len(line.split('\t')))
+    file.close()
+    if len(lengthSet) != 1:
+        print('ERROR DURING REFININGBINS, CONTACT RAPHAEL ('+filename+') '+str(lengthSet))
+
+options = []
+for binName in binNameSet :
+    options.append( {'label': binName, 'value': binName })
+
+output = open('/env/cns/proj/agc/home/rmeheust/scripts/bins.info','w')
+output.write('\t'.join(headerList)+'\n')
+for elt in data_bin :
+    output.write('\t'.join(elt)+'\n')
+output.close()
+
+# Create the pandas DataFrame 
+pd.options.display.float_format = '{:,.2f}'.format
+df_bin = pd.read_csv('/env/cns/proj/agc/home/rmeheust/scripts/bins.info',sep="\t")
+
+
+
+
+
+#print(df.dtypes)
+
+percentage = FormatTemplate.percentage(1)
+
+
+columns_bin = [
+    dict(id='scaffold', name='Scaffold'),
+    {'id' : 'bin' , 'name' : 'Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
+    dict(id='refineM_outlier', name='Outliers'),
+    dict(id='anvio_length', name='Length', type='numeric' ,format=Format(precision=0, scheme=Scheme.fixed) , hideable = True),
+    dict(id='anvio_gc', name='GC %', type='numeric', format=percentage , hideable = True),
+    dict(id='anvio_coverage', name='Anvio Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True),
+    dict(id='Mean coverage', name='RefineM Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True), 
+    dict(id='anvio_taxonomy', name='Anvio Taxonomy', hideable = True),
+    dict(id='phylum: taxa', name='GTDB (phylum)', hideable = True),
+    dict(id='class: taxa', name='GTDB (class)', hideable =True),
+    dict(id='order: taxa', name='GTDB (order)', hideable = True),
+    dict(id='family: taxa', name='GTDB (family)', hideable = True),
+    dict(id='genus: taxa', name='GTDB (genus)', hideable = True),
+    dict(id='species: taxa', name='GTDB (species)', hideable = True),
+]
+
+
+
+##########
+# layout #
+##########
+
+summary_tab_content = dbc.Card(
+    dbc.CardBody( 
+        [
+            dbc.Row(dbc.Col(html.H2(children='Bins summary'))),
+            dbc.Row(dbc.Col(html.Hr())),
+            dbc.Row(dbc.Col(
+                dash_table.DataTable(
+                    id='datatable_bin_summary',
+                    data=df_summary.to_dict('records'),
+                    columns=columns_summary,
+                    style_cell={
+                        'textAlign': 'left',
+                    },        
+                    style_as_list_view=True,
+                    style_data_conditional=[
+                        {
+                            'if': {'row_index': 'odd'},
+                            'backgroundColor': 'rgb(248, 248, 248)'
+                        }
+                    ],
+                    row_selectable='multi',
+                    selected_rows = [],
+                    style_cell_conditional = create_conditional_style(df_summary,columns_summary),
+                    style_table={'minWidth': '100%' , 'overflowY': 'auto' , }, # 'height': '250px',
+                    filter_action="native",
+                    sort_action="native",
+                    sort_mode="single",
+                    page_action = "native",
+                    page_current=0,
+                    page_size=20,  # we have less data in this example, so setting to 20
+                    fixed_rows={'headers': True},
+                    style_header={
+                        'backgroundColor': 'rgb(230, 230, 230)',
+                        'fontWeight': 'bold',
+                        'overflow': 'hidden',
+                    }
+                )
+            )),
+            dbc.Row(dbc.Col(html.Hr())),
+            dbc.Row(dbc.Col(html.H2(children='Rename bin name'))),
+            dbc.Row([
+                dbc.Col(
+                    dcc.Dropdown(
+                        id='bin-dropdown',
+                        options = [
+                            {'label': i, 'value': i} for i in df_summary['Bin'].unique()
+                        ],
+                        placeholder="Select a bin",
+                        optionHeight=35,
+                        multi=False,
+                        searchable=True,
+                        clearable=True,
+                        persistence=False,
+                        persistence_type='memory', # 'memory' (browser tab is refreshed', 'session' (browser tab is closed), 'local' (browser cookies are deleted)
+                    ),width={'size' : '2' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
+                ),
+                dbc.Col(
+                    dcc.Input(
+                        id='input-1-state', 
+                        type='text', 
+                        value='',
+                        autoComplete='off',
+                        debounce=True,
+                        minLength=10,
+                        maxLength=50,
+                        required=True,
+                        size="50"
+                        #bs_size="lg"
+                        #placeholder='suggested name: XXX',
+                        # style={
+                        #     'font-size': "100%",
+                        # },
+                    ),width={'size' : '5' , 'order': '2'}
+                ),
+                dbc.Col(
+                    html.Button(n_clicks=0, children='Submit', id='submit_new_bin_name')
+                    ,width={'size' : '2' , 'order': '3'}
+                ),
+                dbc.Col(
+                    html.Div(id='submit_new_bin_name_msg'),width={'size' : '3' , 'order' : '4'}
+                )
+            ]),
+            dbc.Row(dbc.Col(html.Div(id='suggested_bin_name'))),
+            dbc.Row(dbc.Col(html.Hr())),
+            dbc.Row([
+                dbc.Col(
+                    html.Button(n_clicks=0, children='Check and Save', id='save_to_csv')
+                    ,width={'size' : '2'}
+                ),
+                dbc.Col(
+                    html.Div(id='save_to_csv_msg')
+                    ,width={'size' : '4' , 'order' : '2'}
+                )
+            ])
+        ]
+    ),
+    style={"width": "100%" , "className":"mt-3"},
+)
+
+
+bins_tab_content = html.Div(
+    dbc.Card(
+        dbc.CardBody( 
+            [
+                dbc.Row(dbc.Col(html.Hr())),
+                dbc.Row(dbc.Col(html.H2(children='Bins distribution'))),
+                dbc.Row(dbc.Col(html.Hr())),
+                dbc.Row([
+                    dbc.Col(
+                        dcc.Checklist(
+                            id='xaxis_column',
+                            options=options,
+                            value=list(binNameSet)
+                        )#,width={'size' : '8' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'  
+                    )
+                ]),
+
+                dbc.Row([
+                    dbc.Col(
+                        dcc.Dropdown(
+                            id='legend_dropdown',
+                            options=[
+                                {'label': 'ANVIO taxonomy', 'value': 'anvio_taxonomy'},
+                                {'label': 'GTDB domain taxonomy', 'value': 'domain: taxa'},
+                                {'label': 'GTDB phylum taxonomy', 'value': 'phylum: taxa'},
+                                {'label': 'GTDB class taxonomy', 'value': 'class: taxa'},
+                                {'label': 'GTDB order taxonomy', 'value': 'order: taxa'},
+                                {'label': 'GTDB family taxonomy', 'value': 'family: taxa'},
+                                {'label': 'GTDB genus taxonomy', 'value': 'genus: taxa'},
+                                {'label': 'GTDB species taxonomy', 'value': 'species: taxa'}
+                            ],
+                            value='anvio_taxonomy'
+                        ),width={'size' : '3' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'  
+                    )
+                ]),
+                dbc.Row(dbc.Col(dcc.Graph(id='scatter_id'))),
+                dbc.Row(dbc.Col(html.Hr())),
+                
+                dbc.Row(dbc.Col(html.Div(
+                    dash_table.DataTable(
+                        css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}], # Add this line for dropdown
+                        id='datatable_scaffold',
+                        data=df_bin.to_dict('records'),
+                        columns=columns_bin,
+                        style_cell={
+                            'textAlign': 'left',
+                        },        
+                        style_as_list_view=True,
+                        style_cell_conditional = create_conditional_style(df_bin,columns_bin),
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': 'rgb(248, 248, 248)'
+                            }
+                        ],
+                        style_table={'height': '400px', 'overflowY': 'auto'},
+                        dropdown={
+                            'bin': {
+                                'options': [
+                                    {'label': i, 'value': i} for i in df_bin['bin'].unique()
+                                ]
+                            }
+                        },
+                        filter_action="native",
+                        sort_action="native",
+                        sort_mode="multi",
+                        page_size=20,  # we have less data in this example, so setting to 20
+                        fixed_rows={'headers': True},
+                        style_header={
+                            'backgroundColor': 'rgb(230, 230, 230)',
+                            'fontWeight': 'bold',
+                            'overflow': 'hidden',
+                        }
+                    )
+                ))),
+                dbc.Row(dbc.Col(html.Hr()))
+            ]
+        ),
+        className="mt-3",
+    )
+)
 
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.YETI]) # https://bootswatch.com/default/
 
-app.layout = html.Div([
+app.layout = dbc.Container(
+    [
 
-    dbc.Row(dbc.Col(html.H1(children='Sample '+sample),
-                    width={'size' : '3' , 'offset' : '1', 'order': '1'}
-                    )
-            ),
-
+    dbc.Row(dbc.Col(html.H1(children='Sample '+sample),width={'size' : '6' , 'offset' : '0', 'order': '1'})),
     dbc.Row(dbc.Col(html.Div(children='Dash: A web application framework for Python.'))),
 
+    dbc.Tabs(
+        [
+            dbc.Tab(summary_tab_content,label="Summary", tab_id="summary"),
+            dbc.Tab(bins_tab_content,label="Bins", tab_id="bins"),
+        ],
+        id="tabs",
+        active_tab="summary",
+    ),
 
-    dbc.Row(dbc.Col(html.Hr())),
+    ], style={'marginBottom': 50, 'marginTop': 50 , 'marginLeft' : 0 , 'marginRight' : 0}
+)
 
-    dbc.Row(dbc.Col(html.H2(children='Bins summary'))),
 
-    dbc.Row(dbc.Col(html.Div(id='datatable-output-container'))),
-
-    dbc.Row(dbc.Col(html.Hr())),
-
-    dbc.Row(dbc.Col(html.H2(children='Rename bin name'))),
-
-    dbc.Row([
-        dbc.Col(
-            dcc.Dropdown(
-                id='bin-dropdown',
-                options = [
-                    {'label': i, 'value': i} for i in df['Bin'].unique()
-                ],
-                placeholder="Select a bin",
-                optionHeight=35,
-                multi=False,
-                searchable=True,
-                clearable=True,
-                persistence=False,
-                persistence_type='memory', # 'memory' (browser tab is refreshed', 'session' (browser tab is closed), 'local' (browser cookies are deleted)
-                # style={
-                #     'width': '300px', 
-                #     'font-size': "100%",
-                # },
-            ),width={'size' : '2' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
-        ),
-        dbc.Col(
-            dcc.Input(
-                id='input-1-state', 
-                type='text', 
-                value='',
-                autoComplete='off',
-                debounce=True,
-                minLength=10,
-                maxLength=50,
-                required=True,
-                size="50",
-                placeholder='suggested name: XXX',
-                # style={
-                #     'font-size': "100%",
-                # },
-            ),width={'size' : '3' , 'order': '2'}
-        ),
-        dbc.Col(
-            html.Button(n_clicks=0, children='Submit', id='submit-button-state')
-            ,width={'size' : '2' , 'order': '3'}
-        )
-    ]),
-
-    dbc.Row(dbc.Col(html.Div(id='dd-output-container'))),
-    dbc.Row(dbc.Col(html.Div(id='dd-submit-container'),width={'size' : '3' , 'offset' : '0'})),
-    dbc.Row(dbc.Col(html.Button(n_clicks=0, children='Check and Save', id='save-button-state'),width={'size' : '3'}))
-
-], style={'marginBottom': 50, 'marginTop': 50 , 'marginLeft' : 25})
-
+##################
+# callbacks tab1 #
+##################
 
 
 @app.callback(
-    dash.dependencies.Output('dd-output-container', 'children'),
-    [dash.dependencies.Input('bin-dropdown', 'value')])
+    [Output('suggested_bin_name', 'children'),
+     Output('input-1-state', 'value')],
+    Input('bin-dropdown', 'value'))
 
 def update_output(dd_value):
     if dd_value != None :
-        isBin = df["Bin"] == dd_value
-        row_index = df.index[isBin].tolist()[0]
-        lineage = df.at[row_index,'Gtdb_classification']
+        isBin = df_summary["Bin"] == dd_value
+        row_index = df_summary.index[isBin].tolist()[0]
+        lineage = df_summary.at[row_index,'Gtdb_classification']
         name = ''
         if lineage != 'Na' :
             liste = lineage.split(';')
@@ -266,10 +495,10 @@ def update_output(dd_value):
             else:
                 name = liste[-1].split('__')[1]
         else:
-            name = df.at[row_index,'Anvio_taxon'].replace(' ','_')
-        return 'Suggested name for '+dd_value+': '+name+'__'+project+'__'+sample
+            name = df_summary.at[row_index,'Anvio_taxon'].replace(' ','_')
+        return 'Suggested name for '+dd_value+': '+name+'__'+project+'__'+sample,''
     else:
-        return 'Select the bin you want to rename'
+        return 'Select the bin you want to rename',''
 
 
 
@@ -277,21 +506,21 @@ def update_output(dd_value):
 
 
 
-@app.callback([Output('datatable-output-container', 'children'),
-              Output('dd-submit-container', 'children')],
-              Input('submit-button-state', 'n_clicks'),
+@app.callback([Output('datatable_bin_summary', 'data'),
+               Output('submit_new_bin_name_msg', 'children')],
+              Input('submit_new_bin_name', 'n_clicks'),
               State('bin-dropdown', 'value'),
               State('input-1-state', 'value'))
 
 
 def update_datatable(n_clicks, selectedBin, binName):
     if selectedBin != None :
-        isBin = df["Bin"] == selectedBin
-        row_index = df.index[isBin].tolist()[0]
+        isBin = df_summary["Bin"] == selectedBin
+        row_index = df_summary.index[isBin].tolist()[0]
 
         print(isBin)
         print(row_index)
-        print(df.head())
+        print(df_summary.head())
         print('input: ')
         print('input 1: '+str(selectedBin))
         print('input 2: '+str(binName))
@@ -299,51 +528,69 @@ def update_datatable(n_clicks, selectedBin, binName):
         result,msg,colorAlert = checkBinName(binName,sample,project) # have to check for redundancy
 
         if result :
-            df.at[row_index,'Name'] = binName
-        print(df.head())
-
-        alertButton = dbc.Alert(msg, color=colorAlert)
+            # check for uniqness
+            result2,msg2,colorAlert2 = checkUniqness(df_summary,row_index,binName)
+            if result2 :
+                df_summary.at[row_index,'Name'] = binName
+                print(df_summary.head())
+            alertButton = dbc.Alert(msg2, color=colorAlert2,duration=3000)
+        else:
+            alertButton = dbc.Alert(msg, color=colorAlert,duration=3000)
 
     else:
         alertButton = ''
 
-    return [
-        dash_table.DataTable(
-            id='datatable-scaffold',
-            data=df.to_dict('records'),
-            columns=columns,
-            style_cell={
-                'textAlign': 'left',
-            },        
-            style_as_list_view=True,
-            style_data_conditional=[
-                {
-                    'if': {'row_index': 'odd'},
-                    'backgroundColor': 'rgb(248, 248, 248)'
-                }
-            ],
-            row_selectable='multi',
-            selected_rows = [],
-            style_cell_conditional = create_conditional_style(df,columns),
-            style_table={'minWidth': 95 , 'overflowY': 'auto'}, # 'height': '250px',
-            filter_action="native",
-            sort_action="native",
-            sort_mode="single",
-            page_action = "native",
-            page_current=0,
-            page_size=20,  # we have less data in this example, so setting to 20
-            fixed_rows={'headers': True},
-            style_header={
-                'backgroundColor': 'rgb(230, 230, 230)',
-                'fontWeight': 'bold',
-                'overflow': 'hidden',
-            }
-        ),
-        alertButton
-    ]
+
+    return df_summary.to_dict('records'),alertButton
+
+
+@app.callback(
+    [Output('save_to_csv_msg', 'children')],
+    [Input('save_to_csv', 'n_clicks')],
+    [State('datatable_bin_summary', 'data')]
+)
+
+def df_to_csv(n_clicks, dataset ):    
+    input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    print(input_triggered)
+
+    if input_triggered == "save_to_csv":
+        df = pd.DataFrame(dataset)
+        df.to_csv("Your_Bin_Summary_Data.csv")
+
+        return [dbc.Alert("The data has been saved to your folder.", color="success",duration=3000)]
+    else:
+        return ['']
+
     
+##################
+# callbacks tab2 #
+##################
+
+
+@app.callback([
+    Output('datatable_scaffold', 'data'),
+    Output('scatter_id', 'figure')],
+    Input('xaxis_column', 'value'),
+    Input('legend_dropdown', 'value')
+)
+
+def update_graph_datatable(checkboxList,legendValue) :
+    print('\n')
+    print('You have selected: '+str(checkboxList))
+    print(legendValue)
+    print('\n')
+
+    fig = px.scatter(df_bin[ df_bin['bin'].isin(checkboxList) ], x="GC", y="Mean coverage", color=legendValue, facet_col="bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["Length (bp)", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
+
+
+    #fig = px.scatter(dff_bin, x="GC", y="Mean coverage")
+    print(df_bin[ df_bin['bin'].isin(checkboxList) ].head())
+    return df_bin[ df_bin['bin'].isin(checkboxList) ].to_dict('records'),fig
+
+
+
     
 if __name__ == '__main__':
     print('test')
-
     app.run_server(host=ip_address,debug=True, port = int(port))

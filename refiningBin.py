@@ -622,8 +622,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
                 if scaffold in refineM_scaffold2info :
                     refineM_info = refineM_scaffold2info[scaffold]
                 else:
-                    refineM_info = 'Na'
-        
+                    refineM_info = scaffold+'\t'+'NA'+'\t'+'NA'+'\t'+'NA'+'\t'+'NA'+'\t'+'NA'+'\t'+'NA'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'unclassified'+'\t'+'na'+'\t'+'na'+'\t'+'na'+'\t'+'na'
                 if scaffold in scaffold2outlier :
                     outlier = scaffold2outlier[scaffold]
                 else :
@@ -663,7 +662,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
 
 
 
-def writingOutputProkaryote(json_data, refiningBins_directory , anvio_scaffold2info, anvio_scaffold2taxonomy , partialScaffold2bin) :
+def writingOutputProkaryote(json_data, refiningBins_directory , anvio_scaffold2info, anvio_scaffold2taxonomy , partialScaffold2bin) : # if no prok in the metagenome
 
     #################################
     # assembly and collection info #
