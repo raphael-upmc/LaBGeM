@@ -206,6 +206,7 @@ for root, dirs, files in os.walk(directory):
 
 binNameSet = set()
 data_bin = list()
+
 for filename in binFilenameSet :
     lengthSet = set()
     binNameSet.add(os.path.basename(filename.replace('.tsv','')))
@@ -213,26 +214,57 @@ for filename in binFilenameSet :
     headerList = next(file).rstrip().split('\t')
     for line in file :
         line = line.rstrip()
-        data_bin.append(line.split('\t'))
+        liste = line.split('\t')
+        sublist = []
+        for i in [0,1,2,6,7,10,11,12,15,20,25,30,35,40,45]:
+#            print(i)
+            if i >= len(liste) :
+                sublist.append(np.nan)
+            else:
+                if i == 10 : # int
+                    if liste[i] == 'Na' :
+                        sublist.append(np.nan)
+                    else:
+                        sublist.append(int(liste[i]))
+                elif i == 6 or i == 11 or i == 12 : # float
+                    if liste[i] == 'Na' :
+                        sublist.append(np.nan)
+                    else:
+                        if i == 11 :
+                            sublist.append(float(liste[i])/100.00)
+                        else:
+                            sublist.append(float(liste[i]))
+                else:
+                    sublist.append(liste[i])
+        data_bin.append(sublist)
         lengthSet.add(len(line.split('\t')))
     file.close()
     if len(lengthSet) != 1:
         print('ERROR DURING REFININGBINS, CONTACT RAPHAEL ('+filename+') '+str(lengthSet))
 
-options = []
+options_checklist = []
 for binName in binNameSet :
-    options.append( {'label': binName, 'value': binName })
+    options_checklist.append( {'label': binName, 'value': binName })
 
-output = open('/env/cns/proj/agc/home/rmeheust/scripts/bins.info','w')
-output.write('\t'.join(headerList)+'\n')
-for elt in data_bin :
-    output.write('\t'.join(elt)+'\n')
-output.close()
+print('data_bin')
+print(len(data_bin))
+print(len(data_bin[0]))
+print(data_bin[0])
+print()
+
+headerSublist = []
+for i in [0,1,2,6,7,10,11,12,15,20,25,30,35,40,45]:
+    headerSublist.append(headerList[i])
+
+df_bin = pd.DataFrame( data_bin, columns = headerSublist )
+print(headerSublist)
+
+
+print(df_bin.dtypes)
+
 
 # Create the pandas DataFrame 
-pd.options.display.float_format = '{:,.2f}'.format
-df_bin = pd.read_csv('/env/cns/proj/agc/home/rmeheust/scripts/bins.info',sep="\t")
-
+#pd.options.display.float_format = '{:,.2f}'.format
 
 
 
@@ -246,8 +278,8 @@ columns_bin = [
     dict(id='scaffold', name='Scaffold'),
     {'id' : 'bin' , 'name' : 'Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
     dict(id='refineM_outlier', name='Outliers'),
-    dict(id='anvio_length', name='Length', type='numeric' ,format=Format(precision=0, scheme=Scheme.fixed) , hideable = True),
-    dict(id='anvio_gc', name='GC %', type='numeric', format=percentage , hideable = True),
+    dict(id='Length (bp)', name='Length', type='numeric' ,format=Format(precision=0, scheme=Scheme.fixed) , hideable = True),
+    dict(id='GC', name='GC %', type='numeric', format=percentage , hideable = True),
     dict(id='anvio_coverage', name='Anvio Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True),
     dict(id='Mean coverage', name='RefineM Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True), 
     dict(id='anvio_taxonomy', name='Anvio Taxonomy', hideable = True),
@@ -376,7 +408,7 @@ bins_tab_content = html.Div(
                     dbc.Col(
                         dcc.Checklist(
                             id='xaxis_column',
-                            options=options,
+                            options=options_checklist,
                             value=list(binNameSet)
                         )#,width={'size' : '8' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'  
                     )
@@ -398,17 +430,18 @@ bins_tab_content = html.Div(
                             ],
                             value='anvio_taxonomy'
                         ),width={'size' : '3' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'  
+                    ),
+                    dbc.Col(
+                        html.Button(n_clicks=0, children='Update scatterplot', id='update_scatter'),width={'order': '1' , 'size' : '3'}
                     )
                 ]),
                 dbc.Row(dbc.Col(dcc.Graph(id='scatter_id'))),
                 dbc.Row(dbc.Col(html.Hr())),
-                
-                dbc.Row(dbc.Col(html.Div(
+                dbc.Row(dbc.Col(
                     dash_table.DataTable(
                         css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}], # Add this line for dropdown
-                        id='datatable_scaffold',
-                        data=df_bin.to_dict('records'),
                         columns=columns_bin,
+                        id = 'datatable_scaffold_id',
                         style_cell={
                             'textAlign': 'left',
                         },        
@@ -420,7 +453,7 @@ bins_tab_content = html.Div(
                                 'backgroundColor': 'rgb(248, 248, 248)'
                             }
                         ],
-                        style_table={'height': '400px', 'overflowY': 'auto'},
+                        style_table={'height': '800px', 'overflowY': 'auto'},
                         dropdown={
                             'bin': {
                                 'options': [
@@ -430,7 +463,7 @@ bins_tab_content = html.Div(
                         },
                         filter_action="native",
                         sort_action="native",
-                        sort_mode="multi",
+                        sort_mode="single",
                         page_size=20,  # we have less data in this example, so setting to 20
                         fixed_rows={'headers': True},
                         style_header={
@@ -439,8 +472,9 @@ bins_tab_content = html.Div(
                             'overflow': 'hidden',
                         }
                     )
-                ))),
-                dbc.Row(dbc.Col(html.Hr()))
+                )
+            ),
+            dbc.Row(dbc.Col(html.Hr()))
             ]
         ),
         className="mt-3",
@@ -453,7 +487,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.YETI]) # https://boot
 app.layout = dbc.Container(
     [
 
-    dbc.Row(dbc.Col(html.H1(children='Sample '+sample),width={'size' : '6' , 'offset' : '0', 'order': '1'})),
+    dbc.Row(dbc.Col(html.H1(children = 'Sample '+sample),width={'size' : '6' , 'offset' : '0', 'order': '1'})),
     dbc.Row(dbc.Col(html.Div(children='Dash: A web application framework for Python.'))),
 
     dbc.Tabs(
@@ -467,6 +501,9 @@ app.layout = dbc.Container(
 
     ], style={'marginBottom': 50, 'marginTop': 50 , 'marginLeft' : 0 , 'marginRight' : 0}
 )
+
+
+
 
 
 ##################
@@ -568,27 +605,49 @@ def df_to_csv(n_clicks, dataset ):
 ##################
 
 
-@app.callback([
-    Output('datatable_scaffold', 'data'),
-    Output('scatter_id', 'figure')],
-    Input('xaxis_column', 'value'),
-    Input('legend_dropdown', 'value')
+# https://dash.plotly.com/datatable/interactivity
+# https://community.plotly.com/t/dash-table-datatable-filtering-and-sorting-doesnt-seem-to-work/16362
+
+@app.callback(
+    [Output('datatable_scaffold_id', 'data')],
+    [Input('xaxis_column', 'value'),
+     Input('update_scatter','n_clicks')],
+    [State('datatable_scaffold_id', 'data')]
 )
 
-def update_graph_datatable(checkboxList,legendValue) :
-    print('\n')
-    print('You have selected: '+str(checkboxList))
+def display_datatable(checkboxList,n_clicks,dataset) :
+    print('update datatable')
+    print(checkboxList)
+    print(columns_bin)
+    print(len(df_bin[ df_bin['bin'].isin(checkboxList) ]))
+
+    input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    if input_triggered == "update_scatter": # updating df_bin
+        for row in dataset :
+            isScaffold = df_bin["scaffold"] == row['scaffold']
+            row_index = df_bin.index[isScaffold].tolist()[0]
+            if df_bin.at[row_index,'bin'] != row['bin'] :
+                print(row['scaffold']+'\t'+df_bin.at[row_index,'bin']+'\t==>\t'+row['bin'])
+                df_bin.at[row_index,'bin'] = row['bin']
+
+    return [df_bin[ df_bin['bin'].isin(checkboxList) ].to_dict('records')]
+
+
+@app.callback(
+    [Output('scatter_id', 'figure')],
+    [Input('legend_dropdown', 'value'),
+    Input('datatable_scaffold_id', 'data')]
+)
+
+def display_graph(legendValue,dataset) :
+    print('display_graph')
     print(legendValue)
-    print('\n')
+    print(len(pd.DataFrame(dataset)))
+    #print(dataset['type'])
+    #print(dataset['namespace'].keys())
+    fig = px.scatter(pd.DataFrame(dataset), x="GC", y="Mean coverage", color=legendValue, facet_col="bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["Length (bp)", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
 
-    fig = px.scatter(df_bin[ df_bin['bin'].isin(checkboxList) ], x="GC", y="Mean coverage", color=legendValue, facet_col="bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["Length (bp)", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
-
-
-    #fig = px.scatter(dff_bin, x="GC", y="Mean coverage")
-    print(df_bin[ df_bin['bin'].isin(checkboxList) ].head())
-    return df_bin[ df_bin['bin'].isin(checkboxList) ].to_dict('records'),fig
-
-
+    return [fig]
 
     
 if __name__ == '__main__':
