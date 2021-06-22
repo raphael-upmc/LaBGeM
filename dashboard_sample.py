@@ -145,12 +145,16 @@ headerList.append('Name')
 for line in file :
     line  = line.rstrip()
     liste = line.split('\t')
-    liste[6] = str( float(liste[6])/100.0 )
-    liste[7] = str( float(liste[7])/100.0 )
-    liste[8] = str( float(liste[8])/100.0 )
+    liste[2] = float(liste[2])
+    liste[3] = int(liste[3])
+    liste[4] = int(liste[4])
+    liste[5] = int(liste[5])
+    liste[6] = float(liste[6])/100.0
+    liste[7] = float(liste[7])/100.0
+    liste[8] = float(liste[8])/100.0
     gtdb_lineage = liste[14]
     anvio_lineage = liste[1]
-    print(gtdb_lineage)
+    #print(gtdb_lineage)
     binName = suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count)
 
     result,msg,color = checkBinName(binName,sample,project)
@@ -161,15 +165,13 @@ for line in file :
     data.append( liste )
 file.close()
 
-output = open('/env/cns/proj/agc/home/rmeheust/scripts/summary_bins.info','w')
-output.write('\t'.join(headerList)+'\n')
-for elt in data :
-    output.write('\t'.join(elt)+'\n')
-output.close()
 
 # Create the pandas DataFrame 
 pd.options.display.float_format = '{:,.2f}'.format
-df_summary = pd.read_csv('/env/cns/proj/agc/home/rmeheust/scripts/summary_bins.info',sep="\t")
+df_summary = pd.DataFrame( data, columns = headerList )
+print(df_summary.dtypes)
+
+
 
 percentage = FormatTemplate.percentage(1)
 
@@ -216,24 +218,21 @@ for filename in binFilenameSet :
         line = line.rstrip()
         liste = line.split('\t')
         sublist = []
-        for i in [0,1,2,6,7,10,11,12,15,20,25,30,35,40,45]:
+        for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
 #            print(i)
             if i >= len(liste) :
                 sublist.append(np.nan)
             else:
-                if i == 10 : # int
+                if i == 3 or i == 8 : # int
                     if liste[i] == 'Na' :
                         sublist.append(np.nan)
                     else:
                         sublist.append(int(liste[i]))
-                elif i == 6 or i == 11 or i == 12 : # float
+                elif i == 6 or i == 4 or i == 9 or i == 10 : # float
                     if liste[i] == 'Na' :
                         sublist.append(np.nan)
                     else:
-                        if i == 11 :
-                            sublist.append(float(liste[i])/100.00)
-                        else:
-                            sublist.append(float(liste[i]))
+                        sublist.append(float(liste[i]))
                 else:
                     sublist.append(liste[i])
         data_bin.append(sublist)
@@ -253,14 +252,14 @@ print(data_bin[0])
 print()
 
 headerSublist = []
-for i in [0,1,2,6,7,10,11,12,15,20,25,30,35,40,45]:
+for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
     headerSublist.append(headerList[i])
 
 df_bin = pd.DataFrame( data_bin, columns = headerSublist )
-print(headerSublist)
+#print(headerSublist)
 
 
-print(df_bin.dtypes)
+#print(df_bin.dtypes)
 
 
 # Create the pandas DataFrame 
@@ -278,10 +277,10 @@ columns_bin = [
     dict(id='scaffold', name='Scaffold'),
     {'id' : 'bin' , 'name' : 'Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
     dict(id='refineM_outlier', name='Outliers'),
-    dict(id='Length (bp)', name='Length', type='numeric' ,format=Format(precision=0, scheme=Scheme.fixed) , hideable = True),
-    dict(id='GC', name='GC %', type='numeric', format=percentage , hideable = True),
+    dict(id='refineM_length', name='Length', type='numeric' ,format=Format(precision=0, scheme=Scheme.fixed) , hideable = True),
+    dict(id='refineM_gc', name='GC %', type='numeric', format=percentage , hideable = True),
     dict(id='anvio_coverage', name='Anvio Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True),
-    dict(id='Mean coverage', name='RefineM Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True), 
+    dict(id='refineM_coverage', name='RefineM Coverage', type='numeric',format=Format(precision=1, scheme=Scheme.fixed), hideable = True), 
     dict(id='anvio_taxonomy', name='Anvio Taxonomy', hideable = True),
     dict(id='phylum: taxa', name='GTDB (phylum)', hideable = True),
     dict(id='class: taxa', name='GTDB (class)', hideable =True),
@@ -393,7 +392,7 @@ summary_tab_content = dbc.Card(
             ])
         ]
     ),
-    style={"width": "100%" , "className":"mt-3"},
+    style={"width": "150%" , "className":"mt-3"},
 )
 
 
@@ -435,7 +434,7 @@ bins_tab_content = html.Div(
                         html.Button(n_clicks=0, children='Update scatterplot', id='update_scatter'),width={'order': '1' , 'size' : '3'}
                     )
                 ]),
-                dbc.Row(dbc.Col(dcc.Graph(id='scatter_id'))),
+                dbc.Row(dbc.Col(dcc.Graph(id='scatter_id',style={'width': '100%', 'height': '75vh'}))),
                 dbc.Row(dbc.Col(html.Hr())),
                 dbc.Row(dbc.Col(
                     dash_table.DataTable(
@@ -477,7 +476,7 @@ bins_tab_content = html.Div(
             dbc.Row(dbc.Col(html.Hr()))
             ]
         ),
-        className="mt-3",
+        className="mt-3",style={'width':'150%'}
     )
 )
 
@@ -499,7 +498,7 @@ app.layout = dbc.Container(
         active_tab="summary",
     ),
 
-    ], style={'marginBottom': 50, 'marginTop': 50 , 'marginLeft' : 0 , 'marginRight' : 0}
+    ], style={'marginBottom': 50, 'marginTop': 25 , 'marginLeft' : 0 , 'marginRight' : 0}
 )
 
 
@@ -645,7 +644,7 @@ def display_graph(legendValue,dataset) :
     print(len(pd.DataFrame(dataset)))
     #print(dataset['type'])
     #print(dataset['namespace'].keys())
-    fig = px.scatter(pd.DataFrame(dataset), x="GC", y="Mean coverage", color=legendValue, facet_col="bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["Length (bp)", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
+    fig = px.scatter(pd.DataFrame(dataset), x="refineM_gc", y="refineM_coverage", color=legendValue, facet_col="bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["refineM_length", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
 
     return [fig]
 

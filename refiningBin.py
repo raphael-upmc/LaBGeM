@@ -537,7 +537,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     genomicOutliers_filename = refiningBins_directory+'/refineM/genomicProperties/outliers/outliers.tsv'
     taxoOutliers_filename = refiningBins_directory+'/refineM/taxonomy/outliers/taxon_filter.tsv'
     taxoProfile_dir = refiningBins_directory+'/refineM/taxonomy/profiles/bin_reports'
-    genomicStat_filename =  directory+'/'+'refinedBins'+'/'+''+'/'+'genomicProperties/stats/scaffold_stats.tsv'
+    genomicStat_filename =  refiningBins_directory+'/refineM'+'/'+'genomicProperties/stats/scaffold_stats.tsv'
 
     print('refineM...')
     outliersSet = set()
@@ -559,11 +559,11 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     for line in file :
         line = line.rstrip()
         liste = line.split('\t')
-        binName = liste[0]
+        scaffold = liste[0]
         gc = str( float(liste[2]) / 100.0 )
         length = liste[3]
         coverage = liste[4]
-        scaffold2genomicProperties[scaffold] = length+'\t'+coverage+'\t'+gc
+        scaffold2genomicProperties[scaffold] = [length,coverage,gc]
     file.close()
 
 
@@ -613,27 +613,33 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     ############
     # bin files
 
-    binSet = set()
+    scaffold2length = dict()
+    bin2scaffold = defaultdict(set)
     bin_directory =  directory+'/'+'refinedBins'+'/'+'ANVIO'+'/'+'bins'
     for root, dirs, files in os.walk(bin_directory, topdown=False):
         for filename in files :
             binName = filename.replace('.fna','')
-            binSet.add(binName)
-            scaffold2length = dict()
             for record in SeqIO.parse(root+'/'+filename,'fasta') :
                 scaffold2length[record.id] = len(record)
+                bin2scaffold[binName].add(record.id)
 
-            output_filename = output_dir+'/'+binName+'.tsv'
-            filenameList.append(output_filename)
 
 
     headerRefineM_taxo = '\t'.join( header.split('\t')[5:] )
 
-    for binName in binSet :
+    for binName,scaffoldSet in bin2scaffold.items() :
         output_filename = output_dir+'/'+binName+'.tsv'
+        filenameList.append(output_filename)
+
+        print('\n'+output_filename+'\t'+str(len(scaffoldSet)))
+
         output = open(output_filename,'w')
         output.write('scaffold'+'\t'+'bin'+'\t'+'refineM_outlier'+'\t'+'anvio_length'+'\t'+'anvio_gc'+'\t'+'anvio_nb_splits'+'\t'+'anvio_coverage'+'\t'+'anvio_taxonomy'+'\t'+'refineM_length'+'\t'+'refineM_coverage'+'\t'+'refineM_gc'+'\t'+headerRefineM_taxo+'\n')
         for scaffold,length in sorted(scaffold2length.items() , key = lambda x:x[1] , reverse = True ) :
+
+            if scaffold not in scaffoldSet :
+                continue
+
             if scaffold in anvio_scaffold2taxonomy :
                 taxonomy_anvio = anvio_scaffold2taxonomy[scaffold]
             else:
@@ -659,7 +665,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             else :
                 outlier = '-'
 
-        output.write(scaffold+'\t'+binName+'\t'+outlier+'\t'+info_anvio+'\t'+taxonomy_anvio+'\t'+info_refineM+'\t'+taxo_refineM+'\n')
+            output.write(scaffold+'\t'+binName+'\t'+outlier+'\t'+info_anvio+'\t'+taxonomy_anvio+'\t'+info_refineM+'\t'+taxo_refineM+'\n')
         output.close()
 
 
@@ -674,7 +680,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     # Create an XlsxWriter workbook object and add a worksheet.
     book = Workbook(xlsx_filename)
 
-    print(filenameList)
+    #print(filenameList)
     for filename in filenameList :
         basename = os.path.basename(filename).replace('.tsv','')
         sheet = book.add_worksheet(basename)
