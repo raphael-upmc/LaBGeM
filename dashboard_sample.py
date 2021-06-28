@@ -176,6 +176,124 @@ def load_bins_summary_from_scratch(bins_summary_filename) :
     return df_summary, binName2count,'Suggested bin names, please check the names before saving them'
 
 
+def load_scaffold_from_scratch(directory):
+    binFilenameSet = set()
+    filenameSet = set( [ 'Collection.xlsx' , 'Anvio_summary.tsv' , 'CheckM.tsv' , 'GTDBtk.tsv' , 'Bins_summary.tsv' , 'Sample_summary.tsv' , 'partial_scaffolds.tsv' ] )
+    for root, dirs, files in os.walk(directory):
+        for filename in files :
+            if filename in filenameSet :
+                continue
+            else:
+                binFilenameSet.add(root+'/'+filename)
+
+
+    binNameSet = set()
+    data_bin = list()
+    for filename in binFilenameSet :
+        lengthSet = set()
+        binNameSet.add(os.path.basename(filename.replace('.tsv','')))
+        file = open(filename,'r')
+        headerList = next(file).rstrip().split('\t')
+        for line in file :
+            line = line.rstrip()
+            liste = line.split('\t')
+            sublist = []
+            for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
+                #            print(i)
+                if i >= len(liste) :
+                    sublist.append(np.nan)
+                else:
+                    if i == 3 or i == 8 : # int
+                        if liste[i] == 'Na' :
+                            sublist.append(np.nan)
+                        else:
+                            sublist.append(int(liste[i]))
+                    elif i == 6 or i == 4 or i == 9 or i == 10 : # float
+                        if liste[i] == 'Na' :
+                            sublist.append(np.nan)
+                        else:
+                            sublist.append(float(liste[i]))
+                    else:
+                        sublist.append(liste[i])
+            data_bin.append(sublist)
+            lengthSet.add(len(line.split('\t')))
+        file.close()
+    if len(lengthSet) != 1:
+        print('ERROR DURING REFININGBINS, CONTACT RAPHAEL ('+filename+') '+str(lengthSet))
+
+    headerSublist = []
+    for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
+        headerSublist.append(headerList[i])
+
+    df_bin = pd.DataFrame( data_bin, columns = headerSublist )
+    #print(df_bin.head())
+    return df_bin
+
+
+def load_scaffold_from_saved_file(scaffold2bin_filename,directory):
+    
+    scaffold2bin = dict()
+    file = open(scaffold2bin_filename)
+    header = next(file)
+    for line in file :
+        line = line.rstrip()
+        scaffold,binName = line.split('\t')
+        scaffold2bin[scaffold] = binName
+    file.close()
+
+    binFilenameSet = set()
+    filenameSet = set( [ 'Collection.xlsx' , 'Anvio_summary.tsv' , 'CheckM.tsv' , 'GTDBtk.tsv' , 'Bins_summary.tsv' , 'Sample_summary.tsv' , 'partial_scaffolds.tsv' ] )
+    for root, dirs, files in os.walk(directory):
+        for filename in files :
+            if filename in filenameSet :
+                continue
+            else:
+                binFilenameSet.add(root+'/'+filename)
+
+    binNameSet = set()
+    data_bin = list()
+    for filename in binFilenameSet :
+        lengthSet = set()
+        binNameSet.add(os.path.basename(filename.replace('.tsv','')))
+        file = open(filename,'r')
+        headerList = next(file).rstrip().split('\t')
+        for line in file :
+            line = line.rstrip()
+            liste = line.split('\t')
+            sublist = []
+            for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
+                #            print(i)
+                if i >= len(liste) :
+                    sublist.append(np.nan)
+                else:
+                    if i == 3 or i == 8 : # int
+                        if liste[i] == 'Na' :
+                            sublist.append(np.nan)
+                        else:
+                            sublist.append(int(liste[i]))
+                    elif i == 6 or i == 4 or i == 9 or i == 10 : # float
+                        if liste[i] == 'Na' :
+                            sublist.append(np.nan)
+                        else:
+                            sublist.append(float(liste[i]))
+                    else:
+                        sublist.append(liste[i])
+            sublist[1] = scaffold2bin[sublist[0]]
+            data_bin.append(sublist)
+            lengthSet.add(len(line.split('\t')))
+        file.close()
+    if len(lengthSet) != 1:
+        print('ERROR DURING REFININGBINS, CONTACT RAPHAEL ('+filename+') '+str(lengthSet))
+
+    headerSublist = []
+    for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
+        headerSublist.append(headerList[i])
+
+    df_bin = pd.DataFrame( data_bin, columns = headerSublist )
+    #print(df_bin.head())
+    return df_bin
+
+
 
 ## importing socket module
 import socket
@@ -191,13 +309,17 @@ print(f"IP Address: {ip_address}:{port}")
 
 
 
-# -------------------------------------------------------------------------------------------------------------------------- #
+################
+# loading data #
+################
+
 # tab 1 #
 
 sample = sys.argv[1]
-directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output'
+refinedBin_output_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output'
 bins_summary_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output/Bins_summary.tsv'
 refinedBin_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins'
+
 
 config_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/assembly/info.json'
 with open(config_filename) as f:
@@ -236,69 +358,27 @@ columns_summary = [
 
 
 
-# -------------------------------------------------------------------------------------------------------------------------- #
 # tab 2 
 
-binFilenameSet = set()
-filenameSet = set( [ 'Collection.xlsx' , 'Anvio_summary.tsv' , 'CheckM.tsv' , 'GTDBtk.tsv' , 'Bins_summary.tsv' , 'Sample_summary.tsv' , 'partial_scaffolds.tsv' ] )
-for root, dirs, files in os.walk(directory):
-    for filename in files :
-        if filename in filenameSet :
-            continue
-        else:
-            binFilenameSet.add(root+'/'+filename)
+scaffold2bin_filename = refinedBin_directory+'/'+"scaffold2bin.tsv"
+print('loading scaffold data...')
+df_bin = load_scaffold_from_scratch(refinedBin_output_directory)
 
+print(df_bin.dtypes)
+print(df_bin.head())
 
-binNameSet = set()
-data_bin = list()
-
-for filename in binFilenameSet :
-    lengthSet = set()
-    binNameSet.add(os.path.basename(filename.replace('.tsv','')))
-    file = open(filename,'r')
-    headerList = next(file).rstrip().split('\t')
-    for line in file :
-        line = line.rstrip()
-        liste = line.split('\t')
-        sublist = []
-        for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
-#            print(i)
-            if i >= len(liste) :
-                sublist.append(np.nan)
-            else:
-                if i == 3 or i == 8 : # int
-                    if liste[i] == 'Na' :
-                        sublist.append(np.nan)
-                    else:
-                        sublist.append(int(liste[i]))
-                elif i == 6 or i == 4 or i == 9 or i == 10 : # float
-                    if liste[i] == 'Na' :
-                        sublist.append(np.nan)
-                    else:
-                        sublist.append(float(liste[i]))
-                else:
-                    sublist.append(liste[i])
-        data_bin.append(sublist)
-        lengthSet.add(len(line.split('\t')))
-    file.close()
-    if len(lengthSet) != 1:
-        print('ERROR DURING REFININGBINS, CONTACT RAPHAEL ('+filename+') '+str(lengthSet))
 
 options_checklist = []
-for binName in binNameSet :
+for binName in df_summary['Bin'].unique() :
     options_checklist.append( {'label': binName, 'value': binName })
-
-headerSublist = []
-for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
-    headerSublist.append(headerList[i])
-
-df_bin = pd.DataFrame( data_bin, columns = headerSublist )
+options_checklist.append( {'label': 'Unbinned', 'value': 'Unbinned' })
 
 
 percentage = FormatTemplate.percentage(1)
 columns_bin = [
     dict(id='scaffold', name='Scaffold'),
-    {'id' : 'bin' , 'name' : 'Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
+    {'id' : 'bin' , 'name' : 'Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': False},
+    {'id' : 'new_bin' , 'name' : 'New Bin Name' , 'hideable' : False , 'presentation' : 'dropdown' , 'editable': True},
     dict(id='refineM_outlier', name='Outliers'),
     dict(id='refineM_length', name='Length', type='numeric' ,format=Format(precision=0, scheme=Scheme.fixed) , hideable = True),
     dict(id='refineM_gc', name='GC %', type='numeric', format=percentage , hideable = True),
@@ -425,7 +505,8 @@ summary_tab_content = dbc.Card(
 )
 
 
-bins_tab_content = html.Div(
+bins_tab_content = html.Div([
+    dcc.Store(id='memory_output_tab2_id',storage_type='session'),    
     dbc.Card(
         dbc.CardBody( 
             [
@@ -442,16 +523,31 @@ bins_tab_content = html.Div(
 
                 dbc.Row([
                     dbc.Col(
+                        
+                        dbc.ButtonGroup(
+                            [dbc.Button(children="Load",id='load_saved_names_tab2_id',n_clicks=0,outline=False,color="primary"), dbc.Button("Restart from scratch",id='restart_from_scratch_tab2_id',n_clicks=0,outline=False,color="primary"),dbc.Button(color="primary", outline=False,n_clicks=0, children='Save', id='save_to_csv_tab2_id')], 
+                            size="lg",
+                            className="mr-1",
+                        ),width={'size' : '5' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
+                    ),
+                    dbc.Col(
+                        html.Div(id='button_group_msg_tab2_id'),width={'size' : '6' , 'order' : '2'}
+                    )
+                ]),
+                dbc.Row(dbc.Col(html.Hr())),
+
+                dbc.Row([
+                    dbc.Col(
                         dcc.Dropdown(
-                            id='binList_id',
+                            id='binList_tab2_id',
                             options=options_checklist,
-                            value=list(binNameSet),
+                            value= df_summary['Bin'].unique(),
                             multi=True
                         ),width={'size' : '7' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'  
                     ),
                     dbc.Col(
                         dcc.Dropdown(
-                            id='legend_dropdown',
+                            id='legend_dropdown_tab2_id',
                             options=[
                                 {'label': 'ANVIO taxonomy', 'value': 'anvio_taxonomy'},
                                 {'label': 'GTDB domain taxonomy', 'value': 'domain: taxa'},
@@ -466,16 +562,17 @@ bins_tab_content = html.Div(
                         ),width={'size' : '3' , 'order': '2' , 'offset' : '0'} # 'offset' : '0'  
                     ),
                     dbc.Col(
-                        dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Update scatterplot', id='update_scatter'),width={'order': '3' , 'size' : '2'}
+                        dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Update scatterplot', id='update_scatter_tab2_id'),width={'order': '3' , 'size' : '2'}
                     )
                 ]),
-                dbc.Row(dbc.Col(dcc.Graph(id='scatter_id',style={'width': '100%', 'height': '75vh'}))),
+                dbc.Row(dbc.Col(dcc.Graph(id='scatter_tab2_id',style={'width': '100%', 'height': '75vh'}))),
                 dbc.Row(dbc.Col(html.Hr())),
                 dbc.Row(dbc.Col(
                     dash_table.DataTable(
+                        data=df_bin.to_dict('records'),
                         css=[{"selector": ".Select-menu-outer", "rule": "display: block !important"}], # Add this line for dropdown
                         columns=columns_bin,
-                        id = 'datatable_scaffold_id',
+                        id = 'datatable_scaffold_tab2_id',
                         style_cell={
                             'textAlign': 'left',
                         },        
@@ -489,7 +586,7 @@ bins_tab_content = html.Div(
                         ],
                         style_table={'height': '800px', 'overflowY': 'auto'},
                         dropdown={
-                            'bin': {
+                            'new_bin': {
                                 'options': [
                                     {'label': i, 'value': i} for i in df_bin['bin'].unique()
                                 ]
@@ -513,7 +610,7 @@ bins_tab_content = html.Div(
         ),
         className="mt-3",style={'width':'150%'}
     )
-)
+])
 
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.YETI]) # https://bootswatch.com/default/
@@ -543,6 +640,7 @@ app.layout = dbc.Container(
 ##################
 # callbacks tab1 #
 ##################
+
 
 
 @app.callback(
@@ -649,51 +747,92 @@ def update_datatable(n_clicks_save,n_clicks_load,n_clicks_restart,n_clicks_renam
 # https://community.plotly.com/t/dash-table-datatable-filtering-and-sorting-doesnt-seem-to-work/16362
 
 @app.callback(
-    [Output('datatable_scaffold_id', 'data'),
-     Output(component_id='confirm-dialog', component_property='displayed')],
-    [Input('binList_id', 'value'),
-     Input('update_scatter','n_clicks')],
-    [State('datatable_scaffold_id', 'data')]
+    [Output('memory_output_tab2_id', 'data')],
+    [Input('update_scatter_tab2_id','n_clicks'),
+     Input('load_saved_names_tab2_id','n_clicks'),
+     Input('restart_from_scratch_tab2_id','n_clicks'),
+     Input('save_to_csv_tab2_id','n_clicks')],
+    [State('memory_output_tab2_id', 'data'),
+     State('datatable_scaffold_tab2_id', 'data')]
 )
 
-def display_datatable(binList,n_clicks,dataset) :
-    print('update datatable')
-    print(binList)
-    print(columns_bin)
-    print(len(df_bin[ df_bin['bin'].isin(binList) ]))
-
+def update_store(n_clicks_update,n_clicks_load,n_clicks_restart, n_clicks_save,data_scaffold2bin,dataset):
+    print('\n\nupdate dcc.store (TAB2)')
     input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
-    if input_triggered == "update_scatter": # updating df_bin
+    print(input_triggered)
+    if input_triggered == "update_scatter_tab2_id": # updating df_bin
+        print('updating the dcc.store component...')
+        df_scaffold2bin = pd.DataFrame(data_scaffold2bin)
+        cpt = 0
         for row in dataset :
-            isScaffold = df_bin["scaffold"] == row['scaffold']
-            row_index = df_bin.index[isScaffold].tolist()[0]
-            if df_bin.at[row_index,'bin'] != row['bin'] :
-                print(row['scaffold']+'\t'+df_bin.at[row_index,'bin']+'\t==>\t'+row['bin'])
-                df_bin.at[row_index,'bin'] = row['bin']
+            cpt += 1
+            isScaffold = df_scaffold2bin["scaffold"] == row['scaffold']
+            row_index = df_scaffold2bin.index[isScaffold].tolist()[0]
+            if df_scaffold2bin.at[row_index,'new_bin'] != row['new_bin'] :
+                print(row['scaffold']+'\t'+df_scaffold2bin.at[row_index,'new_bin']+'\t==>\t'+row['new_bin'])    
+                df_scaffold2bin.at[row_index,'new_bin'] = row['new_bin']
+
+    elif input_triggered == "load_saved_names_tab2_id": # updating df_bin
+        print('loading the saved scaffold2bin...')
+        df_scaffold2bin = pd.read_csv(scaffold2bin_filename,sep='\t')
+    elif input_triggered == "restart_from_scratch_tab2_id": # updating df_bin
+        print('starting from scratch')
+        df_scaffold2bin = pd.DataFrame( data = { 'scaffold' : df_bin['scaffold'] , 'new_bin' : df_bin['bin'] } )
+
+    elif input_triggered == "save_to_csv_tab2_id": # updating df_bin
+        print('saving scaffold2bin...')
+        df_scaffold2bin = pd.DataFrame(data_scaffold2bin)
+        df_scaffold2bin.to_csv(scaffold2bin_filename,sep='\t',index=False)
+    else:
+        print('initial call')
+        if os.path.exists(scaffold2bin_filename) :
+            print(scaffold2bin_filename+' exists')
+            df_scaffold2bin = pd.read_csv(scaffold2bin_filename,sep='\t')
+            
+        else:
+            print(scaffold2bin_filename+' does not exist')
+            df_scaffold2bin = pd.DataFrame( data = { 'scaffold' : df_bin['scaffold'] , 'new_bin' : df_bin['bin'] } )
+            df_scaffold2bin.to_csv(scaffold2bin_filename,sep='\t',index=False)
+
+    print('dcc end\n\n\n')
+    return [df_scaffold2bin.to_dict('records')]
+
+
+
+@app.callback(
+    [Output('datatable_scaffold_tab2_id', 'data'),
+     Output(component_id='confirm-dialog', component_property='displayed')],
+    [Input('binList_tab2_id', 'value'),
+     Input('memory_output_tab2_id', 'data')]
+)
+
+def update_datatable(binList,dataset) :  # https://kanoki.org/2019/04/06/pandas-map-dictionary-values-with-dataframe-columns/
+    print('\n\nupdate scaffold datatable (TAB2)')
+    print(binList)
+    df_tmp = pd.DataFrame(dataset)
 
     if len(binList)==0:
         return dash.no_update,True
     else:
-        return [df_bin[ df_bin['bin'].isin(binList) ].to_dict('records'),False]
+        return pd.merge( df_bin[ df_bin['bin'].isin(binList) ],df_tmp[ df_tmp['new_bin'].isin(binList) ] , on = 'scaffold' ).to_dict('records') , False
 
 
 @app.callback(
-    [Output('scatter_id', 'figure')],
-    [Input('legend_dropdown', 'value'),
-    Input('datatable_scaffold_id', 'data')]
+    [Output('scatter_tab2_id', 'figure')],
+    [Input('legend_dropdown_tab2_id', 'value'),
+    Input('datatable_scaffold_tab2_id', 'data')]
 )
 
 def display_graph(legendValue,dataset) :
-    print('display_graph')
+    print('\n\ndisplay_graph (TAB2)')
     print(legendValue)
     print(len(pd.DataFrame(dataset)))
     #print(dataset['type'])
     #print(dataset['namespace'].keys())
-    fig = px.scatter(pd.DataFrame(dataset), x="refineM_gc", y="refineM_coverage", color=legendValue, facet_col="bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["refineM_length", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
+    fig = px.scatter(pd.DataFrame(dataset), x="refineM_gc", y="refineM_coverage", color=legendValue, facet_col="new_bin", facet_col_wrap=3,hover_name="scaffold", hover_data=["refineM_length", "class: taxa", "order: taxa", "family: taxa" , "genus: taxa" , "species: taxa" ])#,height=800)
 
     return [fig]
 
-    
+
 if __name__ == '__main__':
-    print('test')
     app.run_server(host=ip_address,debug=True, port = int(port))
