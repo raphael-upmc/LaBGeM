@@ -19,10 +19,7 @@ import numpy as np
 from dash.exceptions import PreventUpdate
 
 
-
-
 def checkUniqness(df,row_index,binName) :
-    #df.at[row_index,'Name'] = binName
     name2count = defaultdict(int)
     for name in df['Name'] :
         name2count[name] += 1
@@ -58,13 +55,13 @@ def checkBinName(binName,sample,project) :
     return True,'The bin has been renamed','success'
 
 
-def suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
+def suggestedNameFunction(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
     if gtdb_lineage != 'Na' :
         liste = gtdb_lineage.split(';')
         if re.match(r's\_\_',liste[-1]) :
             if liste[-1] == 's__' : # if gtdb species name is empty, look for genus, family, order, class, phylum, domain name...
                 name = 'Unknown'
-                print(reversed(liste))
+                #print(reversed(liste))
                 for taxa in reversed(liste) :
                     if taxa.split('__')[1] != '' :
                         name = taxa.split('__')[1]
@@ -89,6 +86,24 @@ def suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count) :
     else:
         binName2count[binName] = 1
     return binName
+
+def getSuggestedBinNames(df,project,sample) :
+    binName2count = defaultdict(int)
+    liste = list()
+    for index, row in df.iterrows():
+        #print(row)
+        gtdb_lineage = row['Gtdb_classification']
+        anvio_lineage = row['Anvio_taxon']
+        print(anvio_lineage)
+        print(gtdb_lineage)
+        print(project)
+        print(sample)
+        suggestedName = suggestedNameFunction(anvio_lineage,gtdb_lineage,project,sample,binName2count)
+        print(suggestedName)
+        liste.append(suggestedName)
+    df_bin2name = pd.DataFrame( data = { 'Bin' : df_summary['Bin'] , 'Name' : liste } )
+    return  df_bin2name
+
 
 def create_conditional_style(df,columns):
     style=[]
@@ -149,7 +164,7 @@ def load_bins_summary_from_scratch(bins_summary_filename) :
 
     file = open(bins_summary_filename,'r')
     headerList = next(file).rstrip().split('\t')
-    headerList.append('Name')
+#    headerList.append('Name')
     for line in file :
         line  = line.rstrip()
         liste = line.split('\t')
@@ -162,18 +177,17 @@ def load_bins_summary_from_scratch(bins_summary_filename) :
         liste[8] = float(liste[8])/100.0
         gtdb_lineage = liste[14]
         anvio_lineage = liste[1]
-        binName = suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count)
-        result,msg,color = checkBinName(binName,sample,project)
-        if result :
-            liste.append(binName)
-        else:
-            liste.append('TO BE DEFINED')
+        # binName = suggestedName(anvio_lineage,gtdb_lineage,project,sample,binName2count)
+        # result,msg,color = checkBinName(binName,sample,project)
+        # if result :
+        #     liste.append(binName)
+        # else:
+        #     liste.append('TO BE DEFINED')
         data.append( liste )
     file.close()
 
     df_summary = pd.DataFrame( data, columns = headerList )
-    
-    return df_summary, binName2count,'Suggested bin names, please check the names before saving them'
+    return df_summary
 
 
 def load_scaffold_from_scratch(directory):
@@ -197,6 +211,11 @@ def load_scaffold_from_scratch(directory):
         for line in file :
             line = line.rstrip()
             liste = line.split('\t')
+
+            if liste[1] == 'Unbinned' and int(liste[8]) < 3000 :
+                print(liste)
+                continue
+
             sublist = []
             for i in [0,1,2,3,4,6,7,8,9,10,13,18,23,28,33,38,43]:
                 #            print(i)
@@ -330,13 +349,9 @@ sample = data['sample']
 
 
 bin2name_filename = refinedBin_directory+'/'+"bin2name.tsv"
-if not os.path.exists(bin2name_filename):
-    df_summary,binName2count,starting_msg = load_bins_summary_from_scratch(bins_summary_filename)
-else:
-    df_summary,binName2count,starting_msg = load_bins_summary_from_saved_file(bins_summary_filename,bin2name_filename)
-
-
+df_summary = load_bins_summary_from_scratch(bins_summary_filename)
 print(df_summary.dtypes)
+print(df_summary.head())
 
 percentage = FormatTemplate.percentage(1)
 
@@ -361,11 +376,13 @@ columns_summary = [
 # tab 2 
 
 scaffold2bin_filename = refinedBin_directory+'/'+"scaffold2bin.tsv"
-print('loading scaffold data...')
+print('\n\nloading scaffold data...')
 df_bin = load_scaffold_from_scratch(refinedBin_output_directory)
 
-print(df_bin.dtypes)
-print(df_bin.head())
+
+
+#print(df_bin.dtypes)
+#print(df_bin.head())
 
 
 options_checklist = []
@@ -399,111 +416,133 @@ columns_bin = [
 # layout #
 ##########
 
-summary_tab_content = dbc.Card(
-    dbc.CardBody( 
-        [
-            dbc.Row([
-                dbc.Col(html.H2(children='Bins summary')),
-                dbc.Col(
-                    dbc.Alert(starting_msg,color="success",duration=10000)
-                )
-            ]),
-            dbc.Row(dbc.Col(html.Hr())),
-            dbc.Row([
-                dbc.Col(
+summary_tab_content = html.Div([
+    dcc.Store(id='memory_output_tab1_id',storage_type='session'),
+    dbc.Card(
+        dbc.CardBody( 
+            [
+                dbc.Row([
+                    dbc.Col(html.H2(children='Bins summary')),
+                    dbc.Col(
+                        html.Div(id='starting_msg_tab1_id'),width={'size' : '6' , 'order' : '2'}
+                    )
+                ]),
+                dbc.Row(dbc.Col(html.Hr())),
+                dbc.Row([
+                    dbc.Col(
 
-                    dbc.ButtonGroup(
-                        [dbc.Button(children="Load saved names",id='load_saved_names_id',n_clicks=0,outline=False,color="primary"), dbc.Button("Restart from scratch",id='restart_from_scratch_id',n_clicks=0,outline=False,color="primary"),dbc.Button(color="primary", outline=False,n_clicks=0, children='Save the bin names', id='save_to_csv_id')], 
-                        size="lg",
-                        className="mr-1",
-                    ),width={'size' : '5' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
-                ),
-                dbc.Col(
-                    html.Div(id='button_group_msg_id'),width={'size' : '6' , 'order' : '2'}
-                )
-            ]),
+                        dbc.ButtonGroup(
+                            [dbc.Button(children="Load saved names",id='load_saved_names_tab1_id',n_clicks=0,outline=False,color="primary"), dbc.Button("Restart from scratch",id='restart_from_scratch_tab1_id',n_clicks=0,outline=False,color="primary"),dbc.Button(color="primary", outline=False,n_clicks=0, children='Save the bin names', id='save_to_csv_tab1_id')], 
+                            size="lg",
+                            className="mr-1",
+                        ),width={'size' : '5' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
+                    ),
+                    dbc.Col(
+                        html.Div(id='button_group_msg_tab1_id'),width={'size' : '6' , 'order' : '2'}
+                    )
+                ]),
 
-            dbc.Row(dbc.Col(html.Hr())),
-            dbc.Row(dbc.Col(
-                dash_table.DataTable(
-                    id='datatable_bin_summary',
-                    data=df_summary.to_dict('records'),
-                    columns=columns_summary,
-                    style_cell={
-                        'textAlign': 'left',
-                    },        
-                    style_as_list_view=True,
-                    style_data_conditional=[
-                        {
-                            'if': {'row_index': 'odd'},
-                            'backgroundColor': 'rgb(248, 248, 248)'
-                        }
-                    ],
-                    row_selectable='multi',
-                    selected_rows = [],
-                    style_cell_conditional = create_conditional_style(df_summary,columns_summary),
-                    style_table={'minWidth': '100%' , 'overflowY': 'auto' , }, # 'height': '250px',
-                    filter_action="native",
-                    sort_action="native",
-                    sort_mode="single",
-                    page_action = "native",
-                    page_current=0,
-                    page_size=20,  # we have less data in this example, so setting to 20
-                    fixed_rows={'headers': True},
-                    style_header={
-                        'backgroundColor': 'rgb(230, 230, 230)',
-                        'fontWeight': 'bold',
-                        'overflow': 'hidden',
-                    }
-                )
-            )),
-            dbc.Row(dbc.Col(html.Hr())),
-            dbc.Row(dbc.Col(html.H2(children='Rename bin name'))),
-            dbc.Row([
-                dbc.Col(
-                    dcc.Dropdown(
-                        id='bin-dropdown',
-                        options = [
-                            {'label': i, 'value': i} for i in df_summary['Bin'].unique()
+                dbc.Row(dbc.Col(html.Hr())),
+                dbc.Row(dbc.Col(
+                    dash_table.DataTable(
+                        id='datatable_bin_summary_tab1_id',
+                        data=df_summary.to_dict('records'),
+                        columns=columns_summary,
+                        style_cell={
+                            'textAlign': 'left',
+                        },        
+                        style_as_list_view=True,
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': 'rgb(248, 248, 248)'
+                            }
                         ],
-                        placeholder="Select a bin",
-                        optionHeight=35,
-                        multi=False,
-                        searchable=True,
-                        clearable=True,
-                        persistence=False,
-                        persistence_type='memory', # 'memory' (browser tab is refreshed', 'session' (browser tab is closed), 'local' (browser cookies are deleted)
-                    ),width={'size' : '3' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
-                ),
-                dbc.Col(
-                    dcc.Input(
-                        id='input-1-state', 
-                        type='text', 
-                        value='',
-                        autoComplete='off',
-                        debounce=True,
-                        minLength=10,
-                        maxLength=50,
-                        required=True,
-                        #bs_size="lg",
-                        size="60"
-                    ),width={'size' : '4' , 'order': '2'}
-                ),
-                dbc.Col(
-                    dbc.Button(color="primary", outline=False, className="mr-1",n_clicks=0, children='Submit', id='submit_new_bin_name')
-                    ,width={'order': '3'}
-                ),
-                dbc.Col(
-                    html.Div(id='submit_new_bin_name_msg'),width={'size' : '3' , 'order' : '4'}
-                )
-            ]),
-            dbc.Row(dbc.Col(html.Div(id='suggested_bin_name'))),
-            dbc.Row(dbc.Col(html.Hr()))
-        ]
-    ),
-    style={"width": "150%" , "className":"mt-3"},
-)
-
+                        row_selectable='multi',
+                        selected_rows = [],
+                        style_cell_conditional = create_conditional_style(df_summary,columns_summary),
+                        style_table={'minWidth': '100%' , 'overflowY': 'auto' , }, # 'height': '250px',
+                        filter_action="native",
+                        sort_action="native",
+                        sort_mode="single",
+                        page_action = "native",
+                        page_current=0,
+                        page_size=20,  # we have less data in this example, so setting to 20
+                        fixed_rows={'headers': True},
+                        style_header={
+                            'backgroundColor': 'rgb(230, 230, 230)',
+                            'fontWeight': 'bold',
+                            'overflow': 'hidden',
+                        }
+                    )
+                )),
+                dbc.Row(dbc.Col(html.Hr())),
+                dbc.Row(dbc.Col(html.H2(children='Rename bin name'))),
+                dbc.Row([
+                    dbc.Col(
+                        dcc.Dropdown(
+                            id='bin_dropdown_tab1_id',
+                            options = [
+                                {'label': i, 'value': i} for i in df_summary['Bin'].unique()
+                            ],
+                            placeholder="Select a bin",
+                            optionHeight=35,
+                            multi=False,
+                            searchable=True,
+                            clearable=True,
+                            persistence=False,
+                            #persistence_type='session', # 'memory' (browser tab is refreshed', 'session' (browser tab is closed), 'local' (browser cookies are deleted)
+                        ),width={'size' : '3' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
+                    ),
+                    dbc.Col(
+                        dcc.Input(
+                            id='input_tab1_id', 
+                            type='text', 
+                            value='',
+                            autoComplete='off',
+                            debounce=True,
+                            minLength=10,
+                            maxLength=50,
+                            required=True,
+                            #bs_size="lg",
+                            size="60"
+                        ),width={'size' : '4' , 'order': '2'}
+                    ),
+                    dbc.Col(
+                        dbc.Button(color="primary", outline=False, className="mr-1",n_clicks=0, children='Submit', id='submit_new_bin_name_tab1_id')
+                        ,width={'order': '3'}
+                    ),
+                    dbc.Col(
+                        html.Div(id='submit_new_bin_name_msg_tab1_id'),width={'size' : '3' , 'order' : '4'}
+                    )
+                ]),
+                dbc.Row(dbc.Col(html.Div(id='suggested_bin_name_tab1_id'))),
+                dbc.Row(dbc.Col(html.Hr())),
+                # dbc.Row(dbc.Col(html.H2(children='Add a new bin'))),
+                # dbc.Row([
+                #     dbc.Col(
+                #         dcc.Input(
+                #             id='input_add_tab1_id', 
+                #             type='text', 
+                #             value='',
+                #             autoComplete='off',
+                #             debounce=True,
+                #             minLength=10,
+                #             maxLength=50,
+                #             required=True,
+                #             #bs_size="lg",
+                #             size="60"
+                #         ),width={'size' : '4' , 'order': '2'}
+                #     ),
+                #     dbc.Col(
+                #         dbc.Button(color="primary", outline=False, className="mr-1",n_clicks=0, children='Submit', id='submit_add_tab1_id')
+                #         ,width={'order': '3'}
+                #     )
+                # ])
+            ]
+        ),style={"width": "150%" , "className":"mt-3"},
+    )
+])
 
 bins_tab_content = html.Div([
     dcc.Store(id='memory_output_tab2_id',storage_type='session'),    
@@ -641,14 +680,103 @@ app.layout = dbc.Container(
 # callbacks tab1 #
 ##################
 
+# https://dash.plotly.com/datatable/interactivity
+# https://community.plotly.com/t/dash-table-datatable-filtering-and-sorting-doesnt-seem-to-work/16362
+
+@app.callback(
+    [Output('memory_output_tab1_id', 'data'),
+    Output('starting_msg_tab1_id', 'children'),
+     Output('button_group_msg_tab1_id', 'children'),
+    Output('submit_new_bin_name_msg_tab1_id', 'children')],
+    [Input('load_saved_names_tab1_id','n_clicks'),
+     Input('restart_from_scratch_tab1_id','n_clicks'),
+     Input('save_to_csv_tab1_id','n_clicks'),
+     Input('submit_new_bin_name_tab1_id', 'n_clicks')],
+    [State('memory_output_tab1_id','data'),
+     State('bin_dropdown_tab1_id', 'value'),
+     State('input_tab1_id', 'value')]
+)
+
+def update_store_tab1(n_clicks_load,n_clicks_restart, n_clicks_save, n_clicks_newBinName, data_bin2name, selectedBin, binName):
+    print('\n\nUpdate dcc.store (TAB1)')
+    input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
+    print('input triggered: '+input_triggered)
+    if input_triggered == "load_saved_names_tab1_id": # updating df_bin
+        print('loading the saved bbin2name...')
+        df_bin2name = pd.read_csv(bin2name_filename,sep='\t')
+        starting_msg = ''
+        buttonGroup_msg = dbc.Alert('Saved bin names loaded', color='success',dismissable=False,is_open=True)
+        renamingBin_msg = ''
+    elif input_triggered == "restart_from_scratch_tab1_id": # updating df_bin
+        print('starting from scratch')
+        df_bin2name = getSuggestedBinNames(df_summary,project,sample)
+        starting_msg = ''
+        buttonGroup_msg = dbc.Alert('Suggested bin names loaded', color='success',dismissable=False,is_open=True)
+        renamingBin_msg = ''
+    elif input_triggered == "save_to_csv_tab1_id": # updating df_bin
+        print('saving bin2name...')
+        df_bin2name = pd.DataFrame(data_bin2name)
+        df_bin2name.to_csv(bin2name_filename,sep='\t',index=False)
+        starting_msg = ''
+        buttonGroup_msg = dbc.Alert('Bin names saved', color='success',dismissable=False,is_open=True)
+        renamingBin_msg = ''
+    elif input_triggered == "submit_new_bin_name_tab1_id":
+        df_bin2name = pd.DataFrame(data_bin2name)
+        if selectedBin != None :
+            isBin = df_bin2name["Bin"] == selectedBin
+            row_index = df_bin2name.index[isBin].tolist()[0]
+            
+            print(isBin)
+            print(row_index)
+            print(df_bin2name.head())
+            print('input: ')
+            print('input 1: '+str(selectedBin))
+            print('input 2: '+str(binName))
+            
+            result,msg,colorAlert = checkBinName(binName,sample,project) # have to check for redundancy
+            
+            if result :
+                # check for uniqness
+                result2,msg2,colorAlert2 = checkUniqness(df_bin2name,row_index,binName)
+                if result2 :
+                    df_bin2name.at[row_index,'Name'] = binName
+                renamingBin_msg = dbc.Alert(msg2, color=colorAlert2,duration=3000)
+            else:
+                renamingBin_msg = dbc.Alert(msg, color=colorAlert,duration=3000)
+        else:
+            renamingBin_msg = ''
+        starting_msg = ''
+        buttonGroup_msg = ''
+
+
+    else:
+        print('initial call')
+        if os.path.exists(bin2name_filename) :
+            print(bin2name_filename+' exists')
+            df_bin2name = pd.read_csv(bin2name_filename,sep='\t')
+            starting_msg = dbc.Alert(bin2name_filename+' exists', color='success',dismissable=True,is_open=True)
+            buttonGroup_msg = ''
+            renamingBin_msg = ''
+        else:
+            print(bin2name_filename+' does not exist')
+            df_bin2name = getSuggestedBinNames(df_summary,project,sample)
+            starting_msg = dbc.Alert(bin2name_filename+' does not exists', color='success',dismissable=True,is_open=True)
+            buttonGroup_msg = ''
+            renamingBin_msg = ''
+
+    print(df_bin2name.head())
+    print('dcc end\n\n\n')
+    return [df_bin2name.to_dict('records'),starting_msg,buttonGroup_msg,renamingBin_msg]
+
 
 
 @app.callback(
-    [Output('suggested_bin_name', 'children'),
-     Output('input-1-state', 'value')],
-    Input('bin-dropdown', 'value'))
+    [Output('suggested_bin_name_tab1_id', 'children'),
+     Output('input_tab1_id', 'value')],
+    Input('bin_dropdown_tab1_id', 'value'))
 
-def update_output(dd_value):
+def suggestedBinName(dd_value):
+    print('\n\nSuggested Bin Name (TAB1)')
     if dd_value != None :
         isBin = df_summary["Bin"] == dd_value
         row_index = df_summary.index[isBin].tolist()[0]
@@ -670,70 +798,13 @@ def update_output(dd_value):
         return 'Select the bin you want to rename',''
 
 
-@app.callback([Output('datatable_bin_summary', 'data'),
-               Output('button_group_msg_id', 'children'),
-               Output('submit_new_bin_name_msg', 'children')],
-              [Input('save_to_csv_id', 'n_clicks'),
-               Input('load_saved_names_id', 'n_clicks'),
-               Input('restart_from_scratch_id', 'n_clicks'),
-               Input('submit_new_bin_name', 'n_clicks')],
-              [State('bin-dropdown', 'value'),
-               State('datatable_bin_summary', 'data'),
-               State('input-1-state', 'value')])
+@app.callback([Output('datatable_bin_summary_tab1_id', 'data')],
+               [Input('memory_output_tab1_id', 'data')])
 
-
-def update_datatable(n_clicks_save,n_clicks_load,n_clicks_restart,n_clicks_rename_bin, selectedBin, dataset, binName):
-
-    input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
-
-    if input_triggered == "save_to_csv_id":
-        print("The data has been saved to your folder.")
-        df = pd.DataFrame(dataset)
-        df[["Bin", "Name"]].to_csv(bin2name_filename,sep='\t',index=False)
-        return [dash.no_update,dbc.Alert("The data has been saved in "+bin2name_filename+".",color='success',duration=3000),'']
-
-    elif input_triggered == "load_saved_names_id": # load_bins_summary_from_saved_file
-        print("Previous bin names have been erased so you can start from scratch.")
-        df_summary_tmp,binName2count,starting_msg = load_bins_summary_from_saved_file(bins_summary_filename,bin2name_filename)
-        return [df_summary_tmp.to_dict('records'),dbc.Alert("The data has been loaded from previous work.",color='success',duration=3000),'']
-
-    elif input_triggered == "restart_from_scratch_id":
-        print("The data has been loaded from scratch.")
-        df_summary_tmp,binName2count,starting_msg = load_bins_summary_from_scratch(bins_summary_filename)
-        print(df_summary_tmp.head())
-        return [df_summary_tmp.to_dict('records'),dbc.Alert("The data has been loaded from scratch.",color='success',duration=3000),'']
-
-    elif input_triggered == "submit_new_bin_name":
-
-        if selectedBin != None :
-            df = pd.DataFrame(dataset)
-            isBin = df["Bin"] == selectedBin
-            row_index = df.index[isBin].tolist()[0]
-            
-            print(isBin)
-            print(row_index)
-            print(df.head())
-            print('input: ')
-            print('input 1: '+str(selectedBin))
-            print('input 2: '+str(binName))
-            
-            result,msg,colorAlert = checkBinName(binName,sample,project) # have to check for redundancy
-            
-            if result :
-                # check for uniqness
-                result2,msg2,colorAlert2 = checkUniqness(df,row_index,binName)
-                if result2 :
-                    df.at[row_index,'Name'] = binName
-                    #print(df_summary.head())
-                alertButton = dbc.Alert(msg2, color=colorAlert2,duration=3000)
-            else:
-                alertButton = dbc.Alert(msg, color=colorAlert,duration=3000)
-        else:
-            alertButton = ''
-        return [df.to_dict('records'),alertButton,'']
-    else:
-        print('initial call')
-        raise PreventUpdate
+def update_datatable(dataset):
+    df_tmp = pd.DataFrame(dataset)
+    print('Update datatable (TAB1)')
+    return [pd.merge( df_summary,df_tmp , on = 'Bin' ).to_dict('records')]
 
 
 
@@ -814,7 +885,7 @@ def update_datatable(binList,dataset) :  # https://kanoki.org/2019/04/06/pandas-
     if len(binList)==0:
         return dash.no_update,True
     else:
-        return pd.merge( df_bin[ df_bin['bin'].isin(binList) ],df_tmp[ df_tmp['new_bin'].isin(binList) ] , on = 'scaffold' ).to_dict('records') , False
+        return pd.merge( df_bin,df_tmp[ df_tmp['new_bin'].isin(binList) ] , on = 'scaffold' ).to_dict('records') , False
 
 
 @app.callback(
