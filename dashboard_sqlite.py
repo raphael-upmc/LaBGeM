@@ -148,7 +148,7 @@ bins_tab_content = html.Div([
                 dbc.Row(dbc.Col(html.Hr())),
                 dbc.Row([
                     dcc.ConfirmDialog(
-                        id='confirm-dialog',
+                        id='confirm_dialog_tab2_id',
                         displayed=False,
                         message='Please choose Bins!',
                     )
@@ -182,7 +182,7 @@ bins_tab_content = html.Div([
                         ),width={'size' : '3' , 'order': '2' , 'offset' : '0'} # 'offset' : '0'  
                     ),
                     dbc.Col(
-                        dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Update scatterplot', id='update_scatter_tab2_id'),width={'order': '3' , 'size' : '2'}
+                        dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Update Db', id='update_button_tab2_id'),width={'order': '3' , 'size' : '2'}
                     )
                 ]),
 
@@ -225,7 +225,13 @@ bins_tab_content = html.Div([
                     )
                 )
             ),
-            dbc.Row(dbc.Col(html.Hr()))
+            dbc.Row(dbc.Col(html.Hr())),
+            dbc.Row([
+                dbc.Col(
+                    dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Delete all changes', id='delete_button_tab2_id'),width={'order': '3' , 'size' : '2'}
+                )
+            ])
+
             ]
         ),
         className="mt-3",style={'width':'150%'}
@@ -327,7 +333,7 @@ summary_tab_content = html.Div([
                 dbc.Row([
                     dbc.Col(
                         dcc.Input(
-                            id='input_add_bin_tab1_id', 
+                            id='input_add_new_bin_tab1_id', 
                             type='text', 
                             value='',
                             autoComplete='off',
@@ -340,11 +346,10 @@ summary_tab_content = html.Div([
                         ),width={'size' : '4' , 'order': '2'}
                     ),
                     dbc.Col(
-                        dbc.Button(color="primary", outline=False, className="mr-1",n_clicks=0, children='Add', id='add_new_bin_name_tab1_id')
-                        ,width={'order': '3'}
+                        dbc.Button(color="primary", outline=False, className="mr-1",n_clicks=0, children='Add a new bin', id='add_new_bin_tab1_id'),width={'order': '3'}
                     ),
                     dbc.Col(
-                        html.Div(id='add_new_bin_name_msg_tab1_id'),width={'size' : '3' , 'order' : '4'}
+                        html.Div(id='add_new_bin_msg_tab1_id'),width={'size' : '3' , 'order' : '4'}
                     )
                 ]),
                 dbc.Row(dbc.Col(html.Hr())),
@@ -391,31 +396,53 @@ print('Callback...')
 
 @app.callback([Output('bins_datatable_tab1_id', 'data'),
                Output('bin_dropdown_tab1_id','options'),
-               Output('submit_new_bin_name_msg_tab1_id','children')],
-              [Input('submit_bin_name_tab1_id', 'n_clicks')], #, prevent_initial_call=True)
+               Output('submit_new_bin_name_msg_tab1_id','children'),
+               Output('add_new_bin_msg_tab1_id','children')],
+              [Input('submit_bin_name_tab1_id', 'n_clicks'),
+               Input('add_new_bin_tab1_id', 'n_clicks')], #, prevent_initial_call=True)
               [State('bin_dropdown_tab1_id', 'value'),
-              State('input_tab1_id', 'value')]
+               State('input_tab1_id', 'value'),
+               State('input_add_new_bin_tab1_id', 'value')]
           )
 
-def populate_datatable(n_clicks_update,anvio_id,name):
+def populate_datatable(n_clicks_update,n_clicks_add,anvio_id,updated_bin_name,new_bin_name):
     print('\n\npopulate datatable (TAB1)')
     print('connecting to the sqlite db done...')
     conn = sqlite3.connect(db_filename , check_same_thread=True)
+
     update_msg = ''
+    add_msg = ''
 
     input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
     print(input_triggered)
+    
     if input_triggered == "submit_bin_name_tab1_id": 
-        print('update '+db_filename+' with a new bin name '+name+' ('+anvio_id+')')
+        print('update '+db_filename+' with a new bin name '+updated_bin_name+' ('+anvio_id+')')
         sql_update_query = """Update bins set name = ? where anvio_id = ?"""
-        data = (name , anvio_id)
+        data = (updated_bin_name , anvio_id)
         cursor = conn.cursor()
         cursor.execute(sql_update_query, data)
         cursor.close()
         print(conn.commit())
         print("Record Updated successfully")
         update_msg = "Record Updated successfully"
-
+    elif input_triggered == "add_new_bin_tab1_id": 
+        print('add '+db_filename+' with a new bin name '+new_bin_name)
+        add_msg = 'add a new bin'
+        query = 'SELECT anvio_id FROM bins'
+        df_tmp = pd.read_sql_query(query, con=conn)
+        for i in range(1,10000000) :
+            new_anvio_id = 'New_bin_'+str(i)
+            if new_anvio_id not in df_tmp['anvio_id'] :
+                break
+            else:
+                continue
+        sql_insert_query = """ INSERT INTO bins (anvio_id, name, anvio_bin) VALUES (? , ? ,?) """
+        data = (new_anvio_id,new_bin_name,0)
+        cursor = conn.cursor()
+        cursor.execute(sql_insert_query, data)
+        cursor.close()
+        conn.commit()
 
     print('displaying the datatable....')
     query = 'SELECT anvio_id , name , anvio_length , anvio_gc , anvio_contig_nb , anvio_N50 , anvio_completeness , anvio_contamination, anvio_coverage , anvio_taxonomy , gtdb_taxonomy FROM bins'
@@ -424,7 +451,7 @@ def populate_datatable(n_clicks_update,anvio_id,name):
     print(df.head())
     conn.close()
     print('close connection')
-    return df.to_dict('records') , [ {'label': i, 'value': i} for i in df['anvio_id'].unique() ] , update_msg
+    return df.to_dict('records') , [ {'label': i, 'value': i} for i in df['anvio_id'].unique() ] , update_msg , add_msg
 
 
 
@@ -466,43 +493,35 @@ def suggestedBinName(dd_value):
 ##################
 
 @app.callback([Output('binList_tab2_id', 'options'),
-               Output('binList_tab2_id', 'value'),
-               Output('starting_msg_tab2_id', 'children')],
-              [Input('add_new_bin_name_tab1_id', 'n_clicks')] #, prevent_initial_call=True)
+               Output('binList_tab2_id', 'value')],
+              [Input('bins_datatable_tab1_id', 'data')] #, prevent_initial_call=True)
           )
 
-def initBinDropdown(binList):
+def initBinDropdown(dataset):
     print('\n\npopulate bin dropdown (TAB2)')
-    print('connecting to the sqlite db done...')
-    conn = sqlite3.connect(db_filename , check_same_thread=True)
-
-    input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
-    if input_triggered == "add_new_bin_name_tab1_id" :
-        msg = 'Updating the bins list'
-    else:
-        msg = 'Initializing the bins list'
-
-    query = 'SELECT anvio_id FROM bins'
-    print(query)
-    df = pd.read_sql_query(query, con=conn)
-    print(df.head())
-    conn.close()
-    print('close connection')
+    df = pd.DataFrame(dataset)
     options_binList = [ {'label': i, 'value': i} for i in df['anvio_id'].unique() ]
     options_binList.append({'label': 'Unbinned' , 'value': 'Unbinned'})
-    print(options_binList)
-    return  options_binList , df['anvio_id'].unique() , msg 
+    return  options_binList , df['anvio_id'].unique()
 
 
 
 
 @app.callback([Output('datatable_scaffold_tab2_id', 'data'),
-               Output(component_id = 'datatable_scaffold_tab2_id', component_property = 'dropdown')],
+               Output(component_id = 'datatable_scaffold_tab2_id', component_property = 'dropdown'),
+               Output(component_id='confirm_dialog_tab2_id', component_property='displayed')],
                [Input('binList_tab2_id', 'value'), #, prevent_initial_call=True)
-               Input('update_scatter_tab2_id', 'n_clicks')], #, prevent_initial_call=True)
+               Input('update_button_tab2_id', 'n_clicks'), #, prevent_initial_call=True)
+               Input('delete_button_tab2_id', 'n_clicks')], #, prevent_initial_call=True)
+               [State('datatable_scaffold_tab2_id', 'data')], #, prevent_initial_call=True)
            )
 
-def populate_datatable(binList , n_clicks_update):
+def populate_datatable(binList , n_clicks_update, n_clicks_delete, dataset):
+
+    if len(binList)==0:
+        return dash.no_update,dash.no_update,True
+
+
     print('\n\npopulate scaffold datatable (TAB2)')
     print('connecting to the sqlite db done...')
 
@@ -510,33 +529,60 @@ def populate_datatable(binList , n_clicks_update):
 
     input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
     print(input_triggered)
-    if input_triggered == "update_scatter_tab2_id": 
+    if input_triggered == "update_button_tab2_id": 
         print('update '+db_filename+' with a new scaffold assignements')
-        # sql_update_query = """Update bins set name = ? where anvio_id = ?"""
-        # data = (name , anvio_id)
-        # cursor = conn.cursor()
-        # cursor.execute(sql_update_query, data)
-        # cursor.close()
-        # print(conn.commit())
-        print("Record Updated successfully")
+
+        sql_select_query = 'SELECT scaffold_id , anvio_updated_id FROM scaffolds WHERE anvio_updated_id IN ( \''+'\' , \''.join(binList)+'\' )'
+        df_tmp = pd.read_sql_query(sql_select_query, con=conn).set_index('scaffold_id')
+        for row in dataset :
+            if row['anvio_updated_id'] != df_tmp.loc[row['scaffold_id'],'anvio_updated_id'] :
+                sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
+                data = (row['anvio_updated_id'] , row['scaffold_id'])
+                cursor = conn.cursor()
+                cursor.execute(sql_update_query, data)
+                cursor.close()
+                conn.commit()
+                print('\t'+row['scaffold_id']+'. '+df_tmp.loc[row['scaffold_id'],'anvio_updated_id']+' ==> '+row['anvio_updated_id']+". Record Updated successfully")
+            else:
+                continue
+    elif input_triggered == "delete_button_tab2_id": 
+        print('update '+db_filename+' with the initial scaffold assignements')
+        sql_select_query = 'SELECT scaffold_id , anvio_id, anvio_updated_id FROM scaffolds'
+        df_tmp = pd.read_sql_query(sql_select_query, con=conn)
+        for index, row in df_tmp.iterrows():
+            if row['anvio_id'] != row['anvio_updated_id'] :
+                sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
+                data = (row['anvio_id'] , row['scaffold_id'])
+                cursor = conn.cursor()
+                cursor.execute(sql_update_query, data)
+                cursor.close()
+                conn.commit()
+                print('\t'+row['scaffold_id']+'. '+row['anvio_updated_id']+' ==> '+row['anvio_id']+". Record Updated successfully")
+            else:
+                continue
+                
 
 
     print('displaying the datatable....')
     query = 'SELECT scaffold_id , anvio_id , anvio_updated_id , refineM_outlier , refineM_length , refineM_gc , anvio_coverage , refineM_coverage , anvio_taxonomy , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family , refineM_genus , refineM_species FROM scaffolds WHERE anvio_updated_id IN ( \''+'\' , \''.join(binList)+'\' )'
-    print(query)
     df = pd.read_sql_query(query, con=conn)
-    print(df.head())
+
+
+    query = 'SELECT anvio_id FROM bins'
+    df_bins = pd.read_sql_query(query, con=conn)
+
     conn.close()
+
     print('close connection')
     dropdown={
         'anvio_updated_id': {
             'options': [ 
-                {'label': i, 'value': i} for i in df['anvio_id'].unique()
+                {'label': i, 'value': i} for i in df_bins['anvio_id'].unique()
             ]
         }
     }
     dropdown['anvio_updated_id']['options'].append( { 'label' : 'Unbinned' , 'value' : 'Unbinned' } )
-    return df.to_dict('records') , dropdown
+    return df.to_dict('records') , dropdown , False
 
 
 @app.callback(

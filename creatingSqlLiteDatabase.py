@@ -78,14 +78,14 @@ def create_bin(conn,binList) :
     :param bin:
     :return: bin id
     """
-    print(binList)
-    print(len(binList))
-    sql = ''' INSERT INTO bins (anvio_id,name,anvio_coverage,anvio_length,anvio_gc,anvio_contig_nb,anvio_N50,anvio_completeness,anvio_contamination,anvio_taxonomy,gtdb_taxonomy,gtdb_fastani_reference,gtdb_classification_method,checkM_nb_predicted_genes,checkM_translation_table,checkM_coding_density,checkM_completeness,checkM_contamination)
-              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
+    #print(binList)
+    #print(len(binList))
+    sql = ''' INSERT INTO bins (anvio_id,name,anvio_coverage,anvio_length,anvio_gc,anvio_contig_nb,anvio_N50,anvio_completeness,anvio_contamination,anvio_taxonomy,gtdb_taxonomy,gtdb_fastani_reference,gtdb_classification_method,checkM_nb_predicted_genes,checkM_translation_table,checkM_coding_density,checkM_completeness,checkM_contamination,anvio_bin)
+              VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, binList)
     conn.commit()
-    print(cur.lastrowid)
+    #print(cur.lastrowid)
     return cur.lastrowid
 
 def populate_bins_table(conn, bins_summary_filename, sample,project) :
@@ -148,8 +148,8 @@ def populate_bins_table(conn, bins_summary_filename, sample,project) :
 
         name = suggestedNameFunction(anvio_taxonomy,gtdb_taxonomy,project,sample,binName2count)
 
-        row_id = create_bin(conn,[anvio_id,name,anvio_coverage,anvio_length,anvio_gc,anvio_contig_nb,anvio_N50,anvio_completeness,anvio_contamination,anvio_taxonomy,gtdb_taxonomy,gtdb_fastani_reference,gtdb_classification_method,checkM_nb_predicted_genes,checkM_translation_table,checkM_coding_density,checkM_completeness,checkM_contamination])
-        print(row_id)
+        row_id = create_bin(conn,[anvio_id,name,anvio_coverage,anvio_length,anvio_gc,anvio_contig_nb,anvio_N50,anvio_completeness,anvio_contamination,anvio_taxonomy,gtdb_taxonomy,gtdb_fastani_reference,gtdb_classification_method,checkM_nb_predicted_genes,checkM_translation_table,checkM_coding_density,checkM_completeness,checkM_contamination , 1])
+        #print(row_id)
     file.close()
 
 
@@ -160,14 +160,14 @@ def create_scaffold(conn,scaffoldList) :
     :param bin:
     :return: bin id
     """
-    print(scaffoldList)
-    print(len(scaffoldList))
+    #print(scaffoldList)
+    #print(len(scaffoldList))
     sql = ''' INSERT INTO scaffolds (scaffold_id , anvio_id , anvio_updated_id , anvio_gc , anvio_nb_splits , anvio_coverage , anvio_taxonomy , anvio_length , refineM_outlier , refineM_length , refineM_coverage , refineM_gc , refineM_nb_genes  ,refineM_coding_length , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family ,refineM_genus , refineM_species )
               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) '''
     cur = conn.cursor()
     cur.execute(sql, scaffoldList)
     conn.commit()
-    print(cur.lastrowid)
+    #print(cur.lastrowid)
     return cur.lastrowid
 
 
@@ -242,7 +242,7 @@ def populate_scaffolds_table(conn, directory) :
                 continue
 
             row_id = create_scaffold(conn,[ scaffold_id , anvio_id , anvio_updated_id , anvio_gc , anvio_nb_splits , anvio_coverage , anvio_taxonomy , anvio_length , refineM_outlier , refineM_length , refineM_coverage , refineM_gc , refineM_nb_genes , refineM_coding_length , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family , refineM_genus , refineM_species ])
-            print(row_id)
+            #print(row_id)
 
         file.close()
 
@@ -301,7 +301,8 @@ def main():
                                         checkM_translation_table integer,
 	                                checkM_coding_density real,
 	                                checkM_completeness real,
-	                                checkM_contamination real
+	                                checkM_contamination real,
+                                        anvio_bin integer NOT NULL
                                     ); """
 
 
@@ -311,11 +312,15 @@ def main():
     # create tables
     if conn is not None:
         # create bins table
+        print('create bins table...')
         create_table(conn, sql_create_bins_table)
         populate_bins_table(conn , bins_summary_filename , sample , project)
+        print('done')
         # create scaffolds table
+        print('create scaffolds table...')
         create_table(conn, sql_create_scaffolds_table)
         populate_scaffolds_table(conn , directory)
+        print('done')
     else:
         print("Error! cannot create the database connection.")
 
