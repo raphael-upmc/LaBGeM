@@ -21,6 +21,30 @@ import sqlite3
 from sqlite3 import Error
 import os.path, time
 
+def checkBinName(binName,sample,project) :
+    if len(binName) == 0 :
+        return False,'Please, provide a name','danger'
+
+    noFunkyCharacter = r'^[A-Za-z0-9_]*$'
+    if not re.match(noFunkyCharacter, binName) :
+        return False,'Remove the funky characters','danger'
+
+
+    liste = binName.split('__')
+    if len(liste) == 3 :
+        name = liste[0]
+        p = liste[1]
+        s = liste[2]
+        if p != project :
+            return False,'Not a project name','danger'
+            print('error')
+        if s != sample :
+            return False,'Not a sample name','danger'
+    else:
+        return False,'Please format the bin name as follows: NAME__PROJECT__SAMPLE','danger'
+
+    return True,'The bin has been renamed','success'
+
 
 def create_conditional_style(columns):
     style=[]
@@ -354,7 +378,30 @@ summary_tab_content = html.Div([
                 ]),
                 dbc.Row(dbc.Col(html.Hr())),
 
+                dbc.Row(dbc.Col(html.H2(children='Delete selected bins'))), # delete bin                 
+                dbc.Row([
+                    dbc.Col(
+                        dcc.Dropdown(
+                            id='delete_dropdown_tab1_id',
+                            options = [],
+                            placeholder="Select a bin",
+                            optionHeight=35,
+                            multi=False,
+                            searchable=True,
+                            clearable=True,
+                            persistence=False,
+                        ),width={'size' : '3' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'
+                    ),
+                    dbc.Col(
+                        dbc.Button(color="primary", outline=False, className="mr-1",n_clicks=0, children='Delete', id='delete_bin_tab1_id')
+                        ,width={'order': '3'}
+                    ),
+                    dbc.Col(
+                        html.Div(id='delete_bin_msg_tab1_id'),width={'size' : '3' , 'order' : '4'}
+                    )
+                ]),
 
+                dbc.Row(dbc.Col(html.Hr()))
 
             ]
         ),style={"width": "150%" , "className":"mt-3"},
@@ -397,52 +444,105 @@ print('Callback...')
 @app.callback([Output('bins_datatable_tab1_id', 'data'),
                Output('bin_dropdown_tab1_id','options'),
                Output('submit_new_bin_name_msg_tab1_id','children'),
-               Output('add_new_bin_msg_tab1_id','children')],
+               Output('add_new_bin_msg_tab1_id','children'),
+               Output('delete_bin_msg_tab1_id','children')],
               [Input('submit_bin_name_tab1_id', 'n_clicks'),
-               Input('add_new_bin_tab1_id', 'n_clicks')], #, prevent_initial_call=True)
+               Input('add_new_bin_tab1_id', 'n_clicks'),
+               Input('delete_bin_tab1_id', 'n_clicks')], #, prevent_initial_call=True)
               [State('bin_dropdown_tab1_id', 'value'),
                State('input_tab1_id', 'value'),
-               State('input_add_new_bin_tab1_id', 'value')]
+               State('input_add_new_bin_tab1_id', 'value'),
+               State('delete_dropdown_tab1_id','value')]
           )
 
-def populate_datatable(n_clicks_update,n_clicks_add,anvio_id,updated_bin_name,new_bin_name):
+def populate_datatable(n_clicks_update,n_clicks_add,n_clicks_delete,anvio_id,updated_bin_name,new_bin_name,delete_anvio_id):
     print('\n\npopulate datatable (TAB1)')
     print('connecting to the sqlite db done...')
     conn = sqlite3.connect(db_filename , check_same_thread=True)
 
     update_msg = ''
     add_msg = ''
+    delete_msg = ''
+
+
 
     input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
     print(input_triggered)
-    
     if input_triggered == "submit_bin_name_tab1_id": 
+        print(anvio_id)
+        if anvio_id == None :
+            return dash.no_update,dash.no_update,'please, select a bin to rename','',''
+
         print('update '+db_filename+' with a new bin name '+updated_bin_name+' ('+anvio_id+')')
-        sql_update_query = """Update bins set name = ? where anvio_id = ?"""
-        data = (updated_bin_name , anvio_id)
-        cursor = conn.cursor()
-        cursor.execute(sql_update_query, data)
-        cursor.close()
-        print(conn.commit())
-        print("Record Updated successfully")
-        update_msg = "Record Updated successfully"
-    elif input_triggered == "add_new_bin_tab1_id": 
-        print('add '+db_filename+' with a new bin name '+new_bin_name)
-        add_msg = 'add a new bin'
-        query = 'SELECT anvio_id FROM bins'
+
+        # check binName
+        query = 'SELECT anvio_id,name FROM bins'
         df_tmp = pd.read_sql_query(query, con=conn)
-        for i in range(1,10000000) :
-            new_anvio_id = 'New_bin_'+str(i)
-            if new_anvio_id not in df_tmp['anvio_id'] :
-                break
-            else:
-                continue
-        sql_insert_query = """ INSERT INTO bins (anvio_id, name, anvio_bin) VALUES (? , ? ,?) """
-        data = (new_anvio_id,new_bin_name,0)
+
+        result,update_msg,color = checkBinName(updated_bin_name,sample,project)
+        
+        # check redundancy
+        if updated_bin_name in df_tmp['name'].unique() :
+            update_msg = 'bin name already exists'
+            result = False
+            color = 'danger'
+
+        if result :
+            sql_update_query = """Update bins set name = ? where anvio_id = ?"""
+            data = (updated_bin_name , anvio_id)
+            cursor = conn.cursor()
+            cursor.execute(sql_update_query, data)
+            cursor.close()
+            print(conn.commit())
+            print("Record Updated successfully")
+            update_msg = "Record Updated successfully"
+    elif input_triggered == 'delete_bin_tab1_id' :
+        if delete_anvio_id == None :
+            return dash.no_update,dash.no_update,'','','please, select a bin to delete'
+
+        print('delete bin '+delete_anvio_id)
+        sql_delete_query = 'DELETE FROM bins WHERE anvio_id=?'
+        data = [delete_anvio_id]
         cursor = conn.cursor()
-        cursor.execute(sql_insert_query, data)
+        cursor.execute(sql_delete_query, data)
         cursor.close()
         conn.commit()
+        delete_msg = "Record Deleted successfully"
+        print(delete_msg)
+
+    elif input_triggered == "add_new_bin_tab1_id": 
+        if delete_anvio_id == None :
+            return dash.no_update,dash.no_update,'','please, write something!',''
+
+        print('add '+db_filename+' with a new bin name '+new_bin_name)
+        query = 'SELECT anvio_id,name FROM bins'
+        df_tmp = pd.read_sql_query(query, con=conn)
+        
+        # check binName
+        result,add_msg,color = checkBinName(new_bin_name,sample,project)
+        
+        # check redundancy
+        if new_bin_name in df_tmp['name'].unique() :
+            add_msg = 'bin name already exists'
+            result = False
+            color = 'danger'
+
+        if result :
+            for i in range(1,10000000) :
+                new_anvio_id = 'New_bin_'+str(i)
+                if new_anvio_id not in df_tmp['anvio_id'].unique() :
+                    break
+                else:
+                    continue
+
+            print('anvio_id '+new_anvio_id)
+            print(df_tmp['anvio_id'].unique())
+            sql_insert_query = """ INSERT INTO bins (anvio_id, name, anvio_bin) VALUES (? , ? ,?) """
+            data = (new_anvio_id,new_bin_name,0)
+            cursor = conn.cursor()
+            cursor.execute(sql_insert_query, data)
+            cursor.close()
+            conn.commit()
 
     print('displaying the datatable....')
     query = 'SELECT anvio_id , name , anvio_length , anvio_gc , anvio_contig_nb , anvio_N50 , anvio_completeness , anvio_contamination, anvio_coverage , anvio_taxonomy , gtdb_taxonomy FROM bins'
@@ -451,7 +551,7 @@ def populate_datatable(n_clicks_update,n_clicks_add,anvio_id,updated_bin_name,ne
     print(df.head())
     conn.close()
     print('close connection')
-    return df.to_dict('records') , [ {'label': i, 'value': i} for i in df['anvio_id'].unique() ] , update_msg , add_msg
+    return df.to_dict('records') , [ {'label': i, 'value': i} for i in df['anvio_id'].unique() ] , update_msg , add_msg, delete_msg
 
 
 
@@ -485,6 +585,23 @@ def suggestedBinName(dd_value):
         return 'Suggested name for '+dd_value+': '+name+'__'+project+'__'+sample,''
     else:
         return 'Select the bin you want to rename',''
+
+
+@app.callback([Output('delete_dropdown_tab1_id','options')],
+              [Input('bins_datatable_tab1_id', 'data')],
+          )
+
+def populate_delete_dropdown(dataset):
+    print('\n\npopulate delete dropdown (TAB1)')
+    conn = sqlite3.connect(db_filename , check_same_thread=True)
+    query = 'SELECT anvio_id FROM bins WHERE anvio_bin = 0'
+    print(query)
+    df = pd.read_sql_query(query, con=conn)
+    print(df.head())
+    conn.close()
+    options_delete_dropdown = [{'label': i, 'value': i} for i in df['anvio_id'].unique()]
+    print(options_delete_dropdown)
+    return [options_delete_dropdown]
 
 
 
