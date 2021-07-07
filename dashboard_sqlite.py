@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
-# -*- coding: utf-8 -*-                                                                                                                                                                                                                                                      
+# -*- coding: utf-8 -*-                                                                                              
+
+# un petit test                                                                                                                                                        
 
 from collections import defaultdict
 import os,sys,re
