@@ -564,11 +564,20 @@ def suggestedBinName(dd_value):
     print('\n\nSuggested Bin Name (TAB1)')
     if dd_value != None :
         conn = sqlite3.connect(db_filename , check_same_thread=True)
-        query = 'SELECT anvio_id , anvio_taxonomy , gtdb_taxonomy FROM bins'
+        query = 'SELECT anvio_id , anvio_taxonomy , gtdb_taxonomy , anvio_bin FROM bins'
         df = pd.read_sql_query(query, con=conn)
+        print(df['anvio_bin'])
+        print(df['anvio_id'])
         conn.close()
         isBin = df["anvio_id"] == dd_value
+        
         row_index = df.index[isBin].tolist()[0]
+        isAnvioBin = df.at[row_index,'anvio_bin']
+
+        if not isAnvioBin :
+            print(dd_value+'\t'+str(isAnvioBin))
+            return 'No suggested name for a newly created bin',''
+
         lineage = df.at[row_index,'gtdb_taxonomy']
         name = ''
         if lineage != 'NULL' :
