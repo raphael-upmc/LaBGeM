@@ -101,7 +101,7 @@ print(f"IP Address: {ip_address}:{port}")
 
 # tab 1 #
 
-sample = 'Esil_F_AA1'
+sample = 'Esp5_M_AM1'
 refinedBin_output_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output'
 bins_summary_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output/Bins_summary.tsv'
 refinedBin_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins'

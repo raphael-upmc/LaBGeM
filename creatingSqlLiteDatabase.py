@@ -250,12 +250,13 @@ def populate_scaffolds_table(conn, directory) :
 
 
 def main():
-    directory = '/env/cns/proj/projet_CSD/scratch/assemblies/Esil_F_AA1'
+    sample = 'Esp5_M_AM1'
+    project = 'BSI'
+
+    directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample
     database = directory+'/'+'refinedBins'+'/'+'REFINEDBINS.db'
     bins_summary_filename = directory+'/'+'refinedBins'+'/'+'output'+'/'+'Bins_summary.tsv'
     directory = directory+'/'+'refinedBins'+'/'+'output'
-    sample = 'Esil_F_AA1'
-    project = 'BSI'
 
     sql_create_scaffolds_table = """ CREATE TABLE IF NOT EXISTS scaffolds (
                                     scaffold_id text PRIMARY KEY,
