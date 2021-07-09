@@ -971,6 +971,9 @@ def detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , pro
     return scaffold2taxonomy
 
 
+def writingDatabase() :
+    # toto
+
 
 if __name__ == "__main__":
 

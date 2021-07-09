@@ -89,7 +89,7 @@ hostname = socket.gethostname()
 ip_address = socket.gethostbyname(hostname)
 ## printing the hostname and ip_address
 
-port = str('8080')
+port = sys.argv[2]
 print("Hostname: "+hostname+":"+port)
 print(f"IP Address: {ip_address}:{port}")
 
@@ -101,7 +101,7 @@ print(f"IP Address: {ip_address}:{port}")
 
 # tab 1 #
 
-sample = 'Esp5_M_AM1'
+sample = sys.argv[1]
 refinedBin_output_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output'
 bins_summary_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output/Bins_summary.tsv'
 refinedBin_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins'
@@ -467,8 +467,6 @@ def populate_datatable(n_clicks_update,n_clicks_add,n_clicks_delete,anvio_id,upd
     add_msg = ''
     delete_msg = ''
 
-
-
     input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
     print(input_triggered)
     if input_triggered == "submit_bin_name_tab1_id": 
@@ -514,7 +512,7 @@ def populate_datatable(n_clicks_update,n_clicks_add,n_clicks_delete,anvio_id,upd
         print(delete_msg)
 
     elif input_triggered == "add_new_bin_tab1_id": 
-        if delete_anvio_id == None :
+        if new_bin_name == None :
             return dash.no_update,dash.no_update,'','please, write something!',''
 
         print('add '+db_filename+' with a new bin name '+new_bin_name)
