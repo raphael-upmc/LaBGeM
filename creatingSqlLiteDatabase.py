@@ -250,7 +250,7 @@ def populate_scaffolds_table(conn, directory) :
 
 
 def main():
-    sample = 'Efas_M_CS2'
+    sample = sys.argv[1]
     project = 'BSI'
 
     directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample
