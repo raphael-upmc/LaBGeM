@@ -260,14 +260,25 @@ bins_tab_content = html.Div([
                     
                     Choose the lasso or rectangle tool in the graph's menu
                     bar and then select points in the graph.
-                    
-                    Note that if `layout.clickmode = 'event+select'`, selection data also
-                    accumulates (or un-accumulates) selected data if you hold down the shift
-                    button while clicking.
-                    """),
-                    html.Pre(id='change_bin_button_tab2_id',children='')
+
+                    Select the bin in the dropdown button and then click on the `Reassign` button to reassign the scaffolds to the selected bin.
+                    """)
                 ])
             ]),
+            dbc.Row([
+                dbc.Col(
+                    dcc.Dropdown(
+                        id='binList_select_tab2_id',
+                        options=[],
+                        searchable=False,
+                        clearable=False                        
+                    ),width={'size' : '3' , 'order': '1' , 'offset' : '0'} # 'offset' : '0'  
+                ),
+                dbc.Col(
+                    dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Reassign', id='update_button_select_tab2_id'),width={'order': '3' , 'size' : '2'}
+                )
+            ]),
+                dbc.Row(dbc.Col(html.Div(id='msg_select_tab2_id' ))),
 
             dbc.Row(dbc.Col(html.Hr())),
             dbc.Row([
@@ -518,6 +529,27 @@ def populate_datatable(n_clicks_update,n_clicks_add,n_clicks_delete,anvio_id,upd
             return dash.no_update,dash.no_update,'','','please, select a bin to delete'
 
         print('delete bin '+delete_anvio_id)
+
+        # need to reassign the scaffolds assigned to that deleted bin first...
+        sql_select_query = 'SELECT scaffold_id , anvio_updated_id , anvio_id FROM scaffolds WHERE anvio_updated_id = \''+delete_anvio_id+'\''
+        df_tmp = pd.read_sql_query(sql_select_query, con=conn)#.set_index('scaffold_id')
+        for index, row in df_tmp.iterrows():
+            print('toto')
+            print(row['anvio_id']+'\t'+row['anvio_updated_id']+'\t'+row['scaffold_id'])
+            if row['anvio_id'] != row['anvio_updated_id'] :
+                sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
+                data = (row['anvio_id'] , row['scaffold_id'])
+                cursor = conn.cursor()
+                cursor.execute(sql_update_query, data)
+                cursor.close()
+                conn.commit()
+                print('\t'+row['scaffold_id']+'. '+row['anvio_updated_id']+' ==> '+row['anvio_id']+". Record Updated successfully")
+            else:
+                print('ERROR')
+                continue
+
+
+        # then delete the bin
         sql_delete_query = 'DELETE FROM bins WHERE anvio_id=?'
         data = [delete_anvio_id]
         cursor = conn.cursor()
@@ -636,7 +668,8 @@ def populate_delete_dropdown(dataset):
 ##################
 
 @app.callback([Output('binList_tab2_id', 'options'),
-               Output('binList_tab2_id', 'value')],
+               Output('binList_tab2_id', 'value'),
+               Output('binList_select_tab2_id','options')],
               [Input('bins_datatable_tab1_id', 'data')] #, prevent_initial_call=True)
           )
 
@@ -645,7 +678,7 @@ def initBinDropdown(dataset):
     df = pd.DataFrame(dataset)
     options_binList = [ {'label': i, 'value': i} for i in df['anvio_id'].unique() ]
     options_binList.append({'label': 'Unbinned' , 'value': 'Unbinned'})
-    return  options_binList , df['anvio_id'].unique()
+    return  options_binList , df['anvio_id'].unique() , options_binList
 
 
 
@@ -656,7 +689,7 @@ def initBinDropdown(dataset):
                [Input('binList_tab2_id', 'value'), #, prevent_initial_call=True)
                Input('update_button_tab2_id', 'n_clicks'), #, prevent_initial_call=True)
                Input('delete_button_tab2_id', 'n_clicks')], #, prevent_initial_call=True)
-               [State('datatable_scaffold_tab2_id', 'data')], #, prevent_initial_call=True)
+               [State('datatable_scaffold_tab2_id', 'data')], #, prevent_ibnitial_call=True)
            )
 
 def populate_datatable(binList , n_clicks_update, n_clicks_delete, dataset):
@@ -744,18 +777,43 @@ def display_graph(legendValue,dataset) :
 
 
 @app.callback(
-    [Output('change_bin_button_tab2_id', 'children')],
-    [Input('scatter_tab2_id', 'selectedData')]
-)
-def display_selected_data(selectedData):
-    print('selected data')
-    # for key,value in selectedData.items() :
-    #     print(key+'\t'+str(value))
-    for point in selectedData['points'] :
-        print(point)
-        print('\t'+point['hovertext'])
+    [Output('msg_select_tab2_id', 'children')],
+    [Input('update_button_select_tab2_id', 'n_clicks')],
+    [State('binList_select_tab2_id', 'value'), #, prevent_initial_call=True)
+    State('scatter_tab2_id', 'selectedData'),
+    State('datatable_scaffold_tab2_id', 'data')],prevent_initial_call=True)
 
-    return selectedData
+def display_selected_data(n_click,binList,selectedData,dataset):
+    print('selected data')
+    print(binList)
+
+    if selectedData == None :
+        return ['please, select some scaffolds to reassign']
+    elif len(selectedData['points']) == 0 :
+        return ['please, select some scaffolds to reassign']
+    else:
+        scaffoldList = list()
+        for point in selectedData['points'] :
+            print(point)
+            print('\t'+point['hovertext'])
+            scaffoldList.append(point['hovertext'])
+
+    if binList == None :
+        return ['please, select a bin']
+    else:
+        conn = sqlite3.connect(db_filename , check_same_thread=True)
+        print('update '+db_filename+' with a new scaffold assignements')
+        for scaffold_id in scaffoldList :
+            sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
+            data = ( binList , scaffold_id )
+            cursor = conn.cursor()
+            cursor.execute(sql_update_query, data)
+            cursor.close()
+            conn.commit()
+            print('\t'+scaffold_id+'. '+' ==> '+binList+". Record Updated successfully")
+        conn.close()
+        return [str(len(scaffoldList))+' scaffolds have been reassigned to '+binList]
+
 
 if __name__ == '__main__':
     app.run_server(host=ip_address,debug=True, port = int(port))
