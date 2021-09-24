@@ -255,6 +255,10 @@ def main():
 
     directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample
     database = directory+'/'+'refinedBins'+'/'+'REFINEDBINS.db'
+
+    if os.path.exists(database) :
+        sys.exit(database+' already exists, please remove it')
+
     bins_summary_filename = directory+'/'+'refinedBins'+'/'+'output'+'/'+'Bins_summary.tsv'
     directory = directory+'/'+'refinedBins'+'/'+'output'
 
@@ -325,6 +329,9 @@ def main():
     else:
         print("Error! cannot create the database connection.")
 
+
+    right = 0o0666
+    os.chmod(database, right )
 
 if __name__ == '__main__':
     main()

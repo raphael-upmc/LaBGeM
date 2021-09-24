@@ -254,12 +254,28 @@ bins_tab_content = html.Div([
             ),
             dbc.Row(dbc.Col(html.Hr())),
             dbc.Row([
+                dbc.Col([
+                    dcc.Markdown("""
+                    **Selection Data**
+                    
+                    Choose the lasso or rectangle tool in the graph's menu
+                    bar and then select points in the graph.
+                    
+                    Note that if `layout.clickmode = 'event+select'`, selection data also
+                    accumulates (or un-accumulates) selected data if you hold down the shift
+                    button while clicking.
+                    """),
+                    html.Pre(id='change_bin_button_tab2_id',children='')
+                ])
+            ]),
+
+            dbc.Row(dbc.Col(html.Hr())),
+            dbc.Row([
                 dbc.Col(
                     dbc.Button(color="primary", outline=True, className="mr-1",n_clicks=0, children='Delete all changes', id='delete_button_tab2_id'),width={'order': '3' , 'size' : '2'}
                 )
             ])
-
-            ]
+        ]
         ),
         className="mt-3",style={'width':'150%'}
     )
@@ -722,10 +738,24 @@ def display_graph(legendValue,dataset) :
     print('\n\ndisplay_graph (TAB2)')
     print(legendValue)
     print(len(pd.DataFrame(dataset)))
-    fig = px.scatter(pd.DataFrame(dataset), x="refineM_gc", y="refineM_coverage", color=legendValue, facet_col="anvio_updated_id", facet_col_wrap=3,hover_name="scaffold_id", hover_data=["refineM_length", "refineM_class", "refineM_order", "refineM_family" , "refineM_genus" , "refineM_species" ])#,height=800)
+    fig = px.scatter(pd.DataFrame(dataset), x="refineM_coverage", y="refineM_gc", color=legendValue, facet_col="anvio_updated_id", facet_col_wrap=3,hover_name="scaffold_id", hover_data=["refineM_length", "refineM_class", "refineM_order", "refineM_family" , "refineM_genus" , "refineM_species" ])#,height=800)
 
     return [fig]
 
+
+@app.callback(
+    [Output('change_bin_button_tab2_id', 'children')],
+    [Input('scatter_tab2_id', 'selectedData')]
+)
+def display_selected_data(selectedData):
+    print('selected data')
+    # for key,value in selectedData.items() :
+    #     print(key+'\t'+str(value))
+    for point in selectedData['points'] :
+        print(point)
+        print('\t'+point['hovertext'])
+
+    return selectedData
 
 if __name__ == '__main__':
     app.run_server(host=ip_address,debug=True, port = int(port))
