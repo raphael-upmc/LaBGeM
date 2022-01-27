@@ -97,6 +97,16 @@ def creatingDatatables(directory) :
         os.rename(datatable_dir+'/'+'tmp-COVs.txt',coverage_contigs_filename)
         os.remove(datatable_dir+'/'+'tmp-CONTIGS.fa' )
 
+    for hmm in ['Archaea_76','Bacteria_71','Protista_83'] :
+        hmm_hits_filename = datatable_dir+'/'+hmm+'.txt'
+        if not os.path.exists(hmm_hits_filename) :
+            cmd = 'source activate anvio-6.2 && anvi-script-get-hmm-hits-per-gene-call -c '+contigDb_filename+' -o '+datatable_dir+'/'+hmm+' --hmm-source '+hmm+' >/dev/null 2>&1'
+            print(cmd)
+            status = os.system(cmd)
+            print('status: '+str(status)+'\n')
+            if not status == 0 :
+                sys.exit('something went wrong with anvi-script-get-hmm-hits-per-gene-call, exit.')
+
     return coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename
 
 

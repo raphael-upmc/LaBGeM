@@ -101,13 +101,15 @@ print(f"IP Address: {ip_address}:{port}")
 
 # tab 1 #
 
-sample = sys.argv[1]
-refinedBin_output_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output'
-bins_summary_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins/output/Bins_summary.tsv'
-refinedBin_directory = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/refinedBins'
+assembly_dir = sys.argv[1]
+if not os.path.exists(assembly_dir) :
+    sys.exit(assembly_dir+' does not exist, exit')
+refinedBin_output_directory = assembly_dir+'/refinedBins/output'
+bins_summary_filename = assembly_dir+'/refinedBins/output/Bins_summary.tsv'
+refinedBin_directory = assembly_dir+'/refinedBins'
 
 
-config_filename = '/env/cns/proj/projet_CSD/scratch/assemblies/'+sample+'/assembly/info.json'
+config_filename = assembly_dir+'/assembly/info.json'
 with open(config_filename) as f:
     data = json.load(f)
 
@@ -685,17 +687,22 @@ def initBinDropdown(dataset):
 
 @app.callback([Output('datatable_scaffold_tab2_id', 'data'),
                Output(component_id = 'datatable_scaffold_tab2_id', component_property = 'dropdown'),
-               Output(component_id='confirm_dialog_tab2_id', component_property='displayed')],
+               Output(component_id='confirm_dialog_tab2_id', component_property='displayed'),
+               Output('msg_select_tab2_id', 'children')],
                [Input('binList_tab2_id', 'value'), #, prevent_initial_call=True)
                Input('update_button_tab2_id', 'n_clicks'), #, prevent_initial_call=True)
-               Input('delete_button_tab2_id', 'n_clicks')], #, prevent_initial_call=True)
-               [State('datatable_scaffold_tab2_id', 'data')], #, prevent_ibnitial_call=True)
+               Input('delete_button_tab2_id', 'n_clicks'), #, prevent_initial_call=True)
+               Input('update_button_select_tab2_id', 'n_clicks')], #, prevent_initial_call=True)
+               [State('binList_select_tab2_id', 'value'),
+                State('scatter_tab2_id', 'selectedData'),
+               State('datatable_scaffold_tab2_id', 'data')], #, prevent_ibnitial_call=True)
            )
 
-def populate_datatable(binList , n_clicks_update, n_clicks_delete, dataset):
+def populate_datatable(binList , n_clicks_update, n_clicks_delete, n_clicks_select , binList_select , selectedData , dataset):
 
+    msg_select_tab2_id = ''
     if len(binList)==0:
-        return dash.no_update,dash.no_update,True
+        return dash.no_update,dash.no_update,True,msg_select_tab2_id
 
 
     print('\n\npopulate scaffold datatable (TAB2)')
@@ -721,6 +728,36 @@ def populate_datatable(binList , n_clicks_update, n_clicks_delete, dataset):
                 print('\t'+row['scaffold_id']+'. '+df_tmp.loc[row['scaffold_id'],'anvio_updated_id']+' ==> '+row['anvio_updated_id']+". Record Updated successfully")
             else:
                 continue
+
+    elif input_triggered == "update_button_select_tab2_id": 
+        print('Reassigning the selected scaffolds to a bin...')
+        print(binList_select)
+
+        if selectedData == None :
+            msg_select_tab2_id = 'please, select some scaffolds to reassign'
+        elif len(selectedData['points']) == 0 :
+            msg_select_tab2_id = 'please, select some scaffolds to reassign'
+        else:
+            scaffoldList = list()
+            for point in selectedData['points'] :
+                print(point)
+                print('\t'+point['hovertext'])
+                scaffoldList.append(point['hovertext'])
+
+        if binList_select == None :
+            msg_select_tab2_id = 'please, select a bin'
+        else:
+            print('updating '+db_filename+' with a new scaffold assignements...')
+            for scaffold_id in scaffoldList :
+                sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
+                data = ( binList_select , scaffold_id )
+                cursor = conn.cursor()
+                cursor.execute(sql_update_query, data)
+                cursor.close()
+                conn.commit()
+                print('\t'+scaffold_id+'. '+' ==> '+binList_select+". Record Updated successfully")
+            msg_select_tab2_id = str(len(scaffoldList))+' scaffolds have been reassigned to '+binList_select
+
     elif input_triggered == "delete_button_tab2_id": 
         print('update '+db_filename+' with the initial scaffold assignements')
         sql_select_query = 'SELECT scaffold_id , anvio_id, anvio_updated_id FROM scaffolds'
@@ -737,7 +774,6 @@ def populate_datatable(binList , n_clicks_update, n_clicks_delete, dataset):
             else:
                 continue
                 
-
 
     print('displaying the datatable....')
     query = 'SELECT scaffold_id , anvio_id , anvio_updated_id , refineM_outlier , refineM_length , refineM_gc , anvio_coverage , refineM_coverage , anvio_taxonomy , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family , refineM_genus , refineM_species FROM scaffolds WHERE anvio_updated_id IN ( \''+'\' , \''.join(binList)+'\' )'
@@ -758,7 +794,7 @@ def populate_datatable(binList , n_clicks_update, n_clicks_delete, dataset):
         }
     }
     dropdown['anvio_updated_id']['options'].append( { 'label' : 'Unbinned' , 'value' : 'Unbinned' } )
-    return df.to_dict('records') , dropdown , False
+    return df.to_dict('records') , dropdown , False , msg_select_tab2_id
 
 
 @app.callback(
@@ -776,43 +812,43 @@ def display_graph(legendValue,dataset) :
     return [fig]
 
 
-@app.callback(
-    [Output('msg_select_tab2_id', 'children')],
-    [Input('update_button_select_tab2_id', 'n_clicks')],
-    [State('binList_select_tab2_id', 'value'), #, prevent_initial_call=True)
-    State('scatter_tab2_id', 'selectedData'),
-    State('datatable_scaffold_tab2_id', 'data')],prevent_initial_call=True)
+# @app.callback(
+#     [Output('msg_select_tab2_id', 'children')],
+#     [Input('update_button_select_tab2_id', 'n_clicks')],
+#     [State('binList_select_tab2_id', 'value'), #, prevent_initial_call=True)
+#     State('scatter_tab2_id', 'selectedData'),
+#     State('datatable_scaffold_tab2_id', 'data')],prevent_initial_call=True)
 
-def display_selected_data(n_click,binList,selectedData,dataset):
-    print('selected data')
-    print(binList)
+# def display_selected_data(n_click,binList,selectedData,dataset):
+#     print('selected data')
+#     print(binList)
 
-    if selectedData == None :
-        return ['please, select some scaffolds to reassign']
-    elif len(selectedData['points']) == 0 :
-        return ['please, select some scaffolds to reassign']
-    else:
-        scaffoldList = list()
-        for point in selectedData['points'] :
-            print(point)
-            print('\t'+point['hovertext'])
-            scaffoldList.append(point['hovertext'])
+#     if selectedData == None :
+#         return ['please, select some scaffolds to reassign']
+#     elif len(selectedData['points']) == 0 :
+#         return ['please, select some scaffolds to reassign']
+#     else:
+#         scaffoldList = list()
+#         for point in selectedData['points'] :
+#             print(point)
+#             print('\t'+point['hovertext'])
+#             scaffoldList.append(point['hovertext'])
 
-    if binList == None :
-        return ['please, select a bin']
-    else:
-        conn = sqlite3.connect(db_filename , check_same_thread=True)
-        print('update '+db_filename+' with a new scaffold assignements')
-        for scaffold_id in scaffoldList :
-            sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
-            data = ( binList , scaffold_id )
-            cursor = conn.cursor()
-            cursor.execute(sql_update_query, data)
-            cursor.close()
-            conn.commit()
-            print('\t'+scaffold_id+'. '+' ==> '+binList+". Record Updated successfully")
-        conn.close()
-        return [str(len(scaffoldList))+' scaffolds have been reassigned to '+binList]
+#     if binList == None :
+#         return ['please, select a bin']
+#     else:
+#         conn = sqlite3.connect(db_filename , check_same_thread=True)
+#         print('update '+db_filename+' with a new scaffold assignements')
+#         for scaffold_id in scaffoldList :
+#             sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""
+#             data = ( binList , scaffold_id )
+#             cursor = conn.cursor()
+#             cursor.execute(sql_update_query, data)
+#             cursor.close()
+#             conn.commit()
+#             print('\t'+scaffold_id+'. '+' ==> '+binList+". Record Updated successfully")
+#         conn.close()
+#         return [str(len(scaffoldList))+' scaffolds have been reassigned to '+binList]
 
 
 if __name__ == '__main__':
