@@ -50,11 +50,16 @@ anvio_protein_filename = data['anvio_protein_filename']
 
 
 genomeDir = 'genomes'
-shutil.rmtree(genomeDir)
+if os.path.exists(genomeDir) :
+    sys.exit(genomeDir+' already exists, remove it first')
 os.mkdir(genomeDir)
 
+scaffold2coverage_filename = 'scaffold2coverage.info'
+if os.path.exists(scaffold2coverage_filename) :
+    sys.exit(genomeDir+' already exists, remove it first')
 
-outputScaffold = open('scaffold2coverage.info','w')
+
+outputScaffold = open(scaffold2coverage_filename,'w')
 outputScaffold.write('scaffold'+'\t'+'genome'+'\t'+'length_refineM'+'\t'+'coverage_refineM'+'\t'+'coverage_anvio'+'\n')
 
 
