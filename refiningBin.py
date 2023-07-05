@@ -454,7 +454,7 @@ def update(directory) :
 
     taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
     if not os.path.exists(taxo_anvio_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -464,7 +464,7 @@ def update(directory) :
 
     gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
     if not os.path.exists(gene_taxo_anvio_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -474,7 +474,7 @@ def update(directory) :
 
     basic_info_contigs_filename = datatable_dir+'/'+'contigs_basic_info.txt'
     if not os.path.exists(basic_info_contigs_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -484,7 +484,7 @@ def update(directory) :
 
     coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
     if not os.path.exists(coverage_contigs_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -1274,6 +1274,10 @@ if __name__ == "__main__":
     basic_info_contigs_filename = data['anvio_basic_info_contigs_filename']
     gene_taxo_anvio_filename = data['anvio_gene_taxo_anvio_filename']
     taxo_anvio_filename = data['anvio_taxo_filename']
+    if anvio_version in json_data :
+        anvioVersion = json_data['anvio_version']
+    else :
+        anvioVersion = 'anvio-6.2'
 
 
     print('\n')
@@ -1317,7 +1321,7 @@ if __name__ == "__main__":
     else:
         os.mkdir(anvio_directory)
         anvi_summarize_directory = anvio_directory+'/'+'SAMPLES-SUMMARY'
-        cmd = 'source activate anvio-6.2 && anvi-summarize --report-aa-seqs-for-gene-calls -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+anvi_summarize_directory+' -C '+collection+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-summarize --report-aa-seqs-for-gene-calls -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+anvi_summarize_directory+' -C '+collection+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))

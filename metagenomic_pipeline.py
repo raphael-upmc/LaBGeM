@@ -48,7 +48,7 @@ def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_di
 
 
 
-def creatingDatatables(directory) :
+def creatingDatatables(directory,anvioVersion) :
 
     contigDb_filename =   directory+'/'+'contigs.db'
     profileDb_filename = directory+'/'+'anvio'+'/'+'PROFILE.db'
@@ -430,8 +430,8 @@ if __name__ == "__main__":
     json_data['sample'] = sample
     json_data['directory'] = args.cwd
     json_data['assembly_cmd_line'] = ' '.join(sys.argv)
-    json_data['sample type'] = sampleType
-    json_data['anvio version'] = anvioVersion
+    json_data['sample_type'] = sampleType
+    json_data['anvio_version'] = anvioVersion
 
 
     ##############################
@@ -952,7 +952,7 @@ if __name__ == "__main__":
     # creating the datatables #
     ###########################    
     print('\nExporting the datatables...\n')
-    coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename = creatingDatatables(cwd)
+    coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename = creatingDatatables(cwd,anvioVersion)
     json_data['anvio_coverage_contigs_filename'] = coverage_contigs_filename
     json_data['anvio_basic_info_contigs_filename'] = basic_info_contigs_filename
     json_data['anvio_gene_taxo_anvio_filename'] = gene_taxo_anvio_filename
