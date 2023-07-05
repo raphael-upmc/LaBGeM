@@ -56,7 +56,7 @@ os.mkdir(genomeDir)
 
 scaffold2coverage_filename = 'scaffold2coverage.info'
 if os.path.exists(scaffold2coverage_filename) :
-    sys.exit(genomeDir+' already exists, remove it first')
+    sys.exit(scaffold2coverage_filename+' already exists, remove it first')
 
 
 outputScaffold = open(scaffold2coverage_filename,'w')
@@ -78,12 +78,17 @@ for index, row in df_tmp.iterrows():
     if row['anvio_id'] == 'Unbinned' :
         continue
     bin2name[ row['anvio_id'] ] = row['name']
+    print(row['anvio_id']+'\t'+row['name'])
 
 sql_select_query = 'SELECT scaffold_id , anvio_updated_id , anvio_id , refineM_length , refineM_coverage , anvio_coverage FROM scaffolds'
 df_tmp = pd.read_sql_query(sql_select_query, con=conn)#.set_index('scaffold_id')
 for index, row in df_tmp.iterrows():
     if row['anvio_updated_id'] == 'Unbinned' :
         continue
+
+    if row['anvio_updated_id'] == '' :
+        print(row)
+
     scaffold2bin[ row['scaffold_id'] ] = row['anvio_updated_id']
     scaffold2refineM_cov[ row['scaffold_id']  ] = row['refineM_coverage']
     scaffold2anvio_cov[ row['scaffold_id'] ] = row['anvio_coverage']
@@ -94,7 +99,11 @@ print('close connection')
 bin2seqList = defaultdict(list)
 for record in SeqIO.parse(contig_filename,'fasta') :
     if record.id in scaffold2bin :
-        bin2seqList[ bin2name[scaffold2bin[record.id]] ].append(record)
+        binName = scaffold2bin[record.id]
+        if binName == '' :
+            print(record.id)
+        name = bin2name[ binName ]
+        bin2seqList[ name ].append(record)
 
 for name,seqList in bin2seqList.items() :
     genome_filename = genomeDir+'/'+name+'.fna'

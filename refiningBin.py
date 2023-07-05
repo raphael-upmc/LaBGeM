@@ -288,7 +288,7 @@ def runningRefineM(refiningBins_directory,refineM_dir, bin_dir,contig_filename,b
     status = os.system(cmd)
     print('status: '+str(status))
     if not status == 0:
-        sys.exit('something went wrong with refinem scaffold_stats, exit')
+        sys.exit('something went wrong with refinem outliers, exit')
 
 
     filter_dir = genomic_dir+'/'+'filter'
@@ -1402,8 +1402,9 @@ if __name__ == "__main__":
         seqList.append(record)
         scaffold2bin[record.id] = 'Unbinned'
 
-    unbinned_filename = bin_dir+'/'+'Unbinned.fna'
-    SeqIO.write(seqList,unbinned_filename,'fasta')
+    if len(seqList) > 0 :
+        unbinned_filename = bin_dir+'/'+'Unbinned.fna'
+        SeqIO.write(seqList,unbinned_filename,'fasta')
 
     # parsing the anvio results
     anvio_scaffold2taxonomy = detectingContigTaxonomy(gene_taxo_anvio_filename , taxo_anvio_filename , anvio_protein_filename )

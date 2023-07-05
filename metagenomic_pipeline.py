@@ -26,12 +26,12 @@ def megahit(fastq1_filename, fastq2_filename, output_directory,cpu) :
 
 
 
-def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu):
+def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu,sampleType):
     if os.path.exists(cwd+'/'+'spades') :
         shutil.rmtree(cwd+'/'+'spades')
     os.mkdir(cwd+'/'+'spades')
 
-    cmd = 'source activate metagenomics-v1 && spades.py -m 999 -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --sc -o '+output_directory+'/'+'spades'
+    cmd = 'source activate metagenomics-v1 && spades.py -m 999 -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --'+sampleType+' -o '+output_directory+'/'+'spades'
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -61,7 +61,7 @@ def creatingDatatables(directory) :
 
     taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
     if not os.path.exists(taxo_anvio_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion'+ && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -70,7 +70,7 @@ def creatingDatatables(directory) :
 
     gene_taxo_anvio_filename = datatable_dir+'/'+'genes_taxonomy.txt'
     if not os.path.exists(gene_taxo_anvio_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contigDb_filename+' --table genes_taxonomy -o '+gene_taxo_anvio_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -79,7 +79,7 @@ def creatingDatatables(directory) :
 
     basic_info_contigs_filename = datatable_dir+'/'+'contigs_basic_info.txt'
     if not os.path.exists(basic_info_contigs_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contigDb_filename+' --table contigs_basic_info -o '+basic_info_contigs_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -88,7 +88,7 @@ def creatingDatatables(directory) :
 
     coverage_contigs_filename = datatable_dir+'/'+'contigs_coverage_info.txt'
     if not os.path.exists(coverage_contigs_filename) :
-        cmd = 'source activate anvio-6.2 && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-splits-and-coverages -p '+profileDb_filename+' -c '+contigDb_filename+' -o '+datatable_dir+' -O '+'tmp'+' --report-contigs'+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -100,12 +100,12 @@ def creatingDatatables(directory) :
     for hmm in ['Archaea_76','Bacteria_71','Protista_83'] :
         hmm_hits_filename = datatable_dir+'/'+hmm+'.txt'
         if not os.path.exists(hmm_hits_filename) :
-            cmd = 'source activate anvio-6.2 && anvi-script-get-hmm-hits-per-gene-call -c '+contigDb_filename+' -o '+datatable_dir+'/'+hmm+' --hmm-source '+hmm+' >/dev/null 2>&1'
+            cmd = 'source activate '+anvioVersion+' && anvi-script-get-hmm-hits-per-gene-call -c '+contigDb_filename+' -o '+datatable_dir+'/'+hmm+' --hmm-source '+hmm+' >/dev/null 2>&1'
             print(cmd)
             status = os.system(cmd)
             print('status: '+str(status)+'\n')
             if not status == 0 :
-                sys.exit('something went wrong with anvi-script-get-hmm-hits-per-gene-call, exit.')
+                print('something went wrong with anvi-script-get-hmm-hits-per-gene-call, it is likely that contigs database does not have any HMM hits for the HMM source '+hmm)
 
     return coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename
 
@@ -334,6 +334,8 @@ if __name__ == "__main__":
     parser.add_argument('-cpu',type=int,default=1,help='number of CPUs used by hhblits (default: 1)')
     parser.add_argument('-k',type=int,default=25000,help='number of contigs to keep for ANVIO (default: 25000)')
     parser.add_argument('-remove-euk',action='store_true',default=False,help='remove the contigs assigned to euk by both kaiju and EukRep')
+    parser.add_argument('-sampleType', help='the sample type: single cell (sc) or metagenome (meta) (default=meta)', default='meta')
+    parser.add_argument('-anvioVersion', help='the anvi\'o version: anvio-6.2 or anvio-7.1 (default=anvio-7.1)', default='anvio-7.1')
     args = parser.parse_args()
 
     # checking arguments
@@ -380,6 +382,18 @@ if __name__ == "__main__":
             sys.exit(nanopore_filename+' nanopore file does not exist')
 
 
+    if args.sampleType == 'meta' or args.sampleType == 'sc' :
+        sampleType = args.sampleType
+    else:
+        sys.exit(args.sampleType+' sample type does not exist (sc or meta)')
+
+
+    if args.anvioVersion == 'anvio-6.2' or args.sampleType == 'anvio-7.1' :
+        anvioVersion = args.anvioVersion
+    else:
+        sys.exit(args.anvioVersion+' anvi\'o version does not exist (anvio-6.2 or anvio-7.1)')
+
+
     right = 0o0666
 
     print('\n')
@@ -397,7 +411,8 @@ if __name__ == "__main__":
     print('Number of CPUs: '+str(cpu))
     print('Number of contigs to consider for ANVIO: '+str(k))
     print('Removing eukaryotic contigs: '+str(args.remove_euk))
-
+    print('Sample type: '+str(sampleType))
+    print('Anvi\'o version: '+str(anvioVersion))
 
     print('\n')
     print('############')
@@ -415,8 +430,8 @@ if __name__ == "__main__":
     json_data['sample'] = sample
     json_data['directory'] = args.cwd
     json_data['assembly_cmd_line'] = ' '.join(sys.argv)
-
-
+    json_data['sample type'] = sampleType
+    json_data['anvio version'] = anvioVersion
 
 
     ##############################
@@ -489,7 +504,7 @@ if __name__ == "__main__":
         if os.path.exists(spades_contig_filename) and os.path.exists(cwd+'/'+'spades'+'/'+'done') :
             print(spades_contig_filename+' already exists and looks good, keep it')
         else:
-            hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) )
+            hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) , sampleType )
         print('\n')
         print('done')
 
@@ -768,14 +783,14 @@ if __name__ == "__main__":
         os.remove(contig_db_filename)
 
     json_data['anvio_contigDb_filename'] = contig_db_filename
-    cmd = 'source activate anvio-6.2 && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
+    cmd = 'source activate '+anvioVersion+' && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
     print(cmd)
     status = os.system(cmd)
     print(status)
     if not status == 0:
         sys.exit('something went wrong with anvi-gen-contigs-database, exit')
 
-    cmd = 'source activate anvio-6.2 && anvi-run-hmms -c '+contig_db_filename+' -T '+str(cpu)
+    cmd = 'source activate '+anvioVersion+' && anvi-run-hmms -c '+contig_db_filename+' -T '+str(cpu)
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -795,7 +810,7 @@ if __name__ == "__main__":
     print('\n')
     print('Importing the annotations into ANVIO...')
 
-    cmd = 'source activate anvio-6.2 && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'annotations'+'/'+'genes_in_splits.txt'
+    cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contig_db_filename+' --table genes_in_splits -o '+cwd+'/'+'annotations'+'/'+'genes_in_splits.txt'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -841,7 +856,7 @@ if __name__ == "__main__":
     kaiju_filename = cwd+'/'+'taxonomy'+'/'+'kaiju.output'
     kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'kaiju-addTaxonNames.output'
 
-    cmd = 'source activate anvio-6.2 && anvi-get-sequences-for-gene-calls -c '+contig_db_filename+' -o '+gene_call_filename
+    cmd = 'source activate '+anvioVersion+' && anvi-get-sequences-for-gene-calls -c '+contig_db_filename+' -o '+gene_call_filename
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
@@ -864,7 +879,7 @@ if __name__ == "__main__":
 
 
 
-    cmd = 'source activate anvio-6.2 && anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
+    cmd = 'source activate '+anvioVersion+' && anvi-import-taxonomy-for-genes -i '+kaijuTaxon_filename+' -c '+contig_db_filename+' -p kaiju --just-do-it'
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
@@ -895,7 +910,7 @@ if __name__ == "__main__":
         profile_filename = cwd+'/'+'profiles'+'/'+name+'/'+'PROFILE.db'
         auxiliaryData_filename = cwd+'/'+'profiles'+'/'+name+'/'+'AUXILIARY-DATA.db'
         profileList.append(profile_filename)
-        cmd = 'source activate anvio-6.2 && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
+        cmd = 'source activate '+anvioVersion+' && anvi-profile -i '+bam_filename+' -c '+contig_db_filename+' --sample-name \''+name+'\' --output-dir '+cwd+'/'+'profiles'+'/'+name+' --overwrite-output-destinations -T '+str(cpu)
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status))
@@ -917,7 +932,7 @@ if __name__ == "__main__":
 
     profile_filename = cwd+'/'+'anvio'+'/'+'PROFILE.db'
     json_data['anvio_profileDb_filename'] = profile_filename
-    cmd = 'source activate anvio-6.2 && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations --enforce-hierarchical-clustering'
+    cmd = 'source activate '+anvioVersion+' && anvi-merge '+' '.join(profileList)+' -o '+cwd+'/'+'anvio'+' -c '+contig_db_filename+' --sample-name \''+project+'__'+sample+'\' --overwrite-output-destinations --enforce-hierarchical-clustering'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -925,7 +940,7 @@ if __name__ == "__main__":
         sys.exit('something went wrong with anvi-merge, exit')
     print('\n\n')
 
-    cmd = 'source activate anvio-6.2 && anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
+    cmd = 'source activate '+anvioVersion+' && anvi-import-misc-data '+items_filename+' -p '+profile_filename+' --target-data-table items'
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status))
@@ -966,7 +981,7 @@ if __name__ == "__main__":
     #####################
 
     print('\nLaunch the ANVIO web interface please run the following commands:\n')
-    cmd = 'conda activate anvio-6.2'
+    cmd = 'conda activate '+anvioVersion
     print(cmd)
     cmd = 'anvi-interactive --server-only -p '+profile_filename+' -c '+contig_db_filename
     print(cmd)
