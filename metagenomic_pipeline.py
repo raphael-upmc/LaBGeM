@@ -61,7 +61,7 @@ def creatingDatatables(directory) :
 
     taxo_anvio_filename = datatable_dir+'/'+'taxon_names.txt'
     if not os.path.exists(taxo_anvio_filename) :
-        cmd = 'source activate '+anvioVersion'+ && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
+        cmd = 'source activate '+anvioVersion+' && anvi-export-table '+contigDb_filename+' --table taxon_names -o '+taxo_anvio_filename+' >/dev/null 2>&1'
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
