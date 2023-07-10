@@ -10,11 +10,11 @@ import shutil
 
 
 
-def megahit(fastq1_filename, fastq2_filename, output_directory,cpu) :
+def megahit(fastq1_filename, fastq2_filename, output_directory,cpu,metagenomics_env) :
     if os.path.exists(cwd+'/'+'megahit') :
         shutil.rmtree(cwd+'/'+'megahit')
 
-    cmd = 'source activate metagenomics-v1 && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+output_directory+'/'+'megahit'+' --out-prefix megahit --num-cpu-threads '+str(cpu)
+    cmd = 'source activate '+metagenomics_env+' && megahit -1 '+fastq1_filename+' -2 '+fastq2_filename+' -o '+output_directory+'/'+'megahit'+' --min-contig-len 1000 --out-prefix megahit --num-cpu-threads '+str(cpu)
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -26,12 +26,12 @@ def megahit(fastq1_filename, fastq2_filename, output_directory,cpu) :
 
 
 
-def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu,sampleType):
+def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu,sampleType,metagenomics_env):
     if os.path.exists(cwd+'/'+'spades') :
         shutil.rmtree(cwd+'/'+'spades')
     os.mkdir(cwd+'/'+'spades')
 
-    cmd = 'source activate metagenomics-v1 && spades.py -m 999 -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --'+sampleType+' -o '+output_directory+'/'+'spades'
+    cmd = 'source activate '+metagenomics_env+' && spades.py -m 999 -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --nanopore '+nanopore_filename+' --'+sampleType+' -o '+output_directory+'/'+'spades'
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -110,7 +110,7 @@ def creatingDatatables(directory,anvioVersion) :
     return coverage_contigs_filename,basic_info_contigs_filename,gene_taxo_anvio_filename,taxo_anvio_filename
 
 
-def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
+def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename,metagenomics_env) :
 
     # running kaiju
     print()
@@ -118,14 +118,14 @@ def removingEukContigs(contig_filename,gene_call_filename,eukrep_euk_filename) :
     kaiju_filename = cwd+'/'+'taxonomy'+'/'+'all_kaiju.output'
     kaijuTaxon_filename = cwd+'/'+'taxonomy'+'/'+'all_kaiju-addTaxonNames.output'
 
-    cmd = 'source activate metagenomics-v1 && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
+    cmd = 'source activate '+metagenomics_env+' && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
     print('\t'+cmd)
     status = os.system(cmd)
     print('\t'+'status :'+str(status))
     if not status == 0:
         sys.exit('something went wrong with kaiju, exit')
 
-    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,class,order,family,genus,species'+' -v'
+    cmd = 'source activate '+metagenomics_env+' && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,class,order,family,genus,species'+' -v'
     print('\t'+cmd)
     status = os.system(cmd)
     print('\t'+'status :'+str(status))
@@ -178,7 +178,7 @@ def renamingContigs(contig_filename,renamed_contig_filename,project,sample) :
 
 
 
-def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu):
+def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu,metagenomics_env):
     # creating the bed file
     contigSet = set()
     for record in SeqIO.parse(contig_filename,'fasta') :
@@ -186,7 +186,7 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
 
     # converting the bam to a sam file
     tmp_sam_filename = bam_filename+'.tmp.sam'
-    cmd = 'source activate metagenomics-v1 &&  samtools view -h '+bam_filename+' -o '+tmp_sam_filename
+    cmd = 'source activate '+metagenomics_env+' &&  samtools view -h '+bam_filename+' -o '+tmp_sam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -221,7 +221,7 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
 
 
     # creating and sorting a bam file 
-    cmd = 'source activate metagenomics-v1 && samtools view -Sb '+' '+tmp_filename+' | samtools sort -@ '+str(cpu)+' -o'+final_bam_filename
+    cmd = 'source activate '+metagenomics_env+' && samtools view -Sb '+' '+tmp_filename+' | samtools sort -@ '+str(cpu)+' -o'+final_bam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -232,7 +232,7 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
     os.remove(tmp_filename)
 
     # creating the index file
-    cmd = 'source activate metagenomics-v1 && samtools index '+final_bam_filename
+    cmd = 'source activate '+metagenomics_env+' && samtools index '+final_bam_filename
     print(cmd)
     status = os.system(cmd)
     print('status: '+str(status)+'\n')
@@ -245,38 +245,66 @@ def extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filen
 
 
 
-def parsingProdigal(protein_filename,output_filename,contig_filename) :
+def parsingProdigal(protein_filename,output_filename,contig_filename,anvioVersion) :
     contigList = set()
     for record in SeqIO.parse(contig_filename,'fasta') :
         contigList.add(record.id)
 
 
-    cpt = 0
-    output = open(output_filename,'w')
-    header = 'gene_callers_id'+'\t'+'contig'+'\t'+'start'+'\t'+'stop'+'\t'+'direction'+'\t'+'partial'+'\t'+'source'+'\t'+'version'+'\t'+'aa_sequence'
-    output.write(header+'\n')
-    for record in SeqIO.parse(protein_filename,'fasta') :
-        liste = record.description.split(' # ')
-        orf = str(cpt)
-        cpt += 1
-        scaffold = '_'.join(liste[0].split('_')[0:-1])
-        if scaffold not in contigList :
-            continue
+    if contigVersion == 'anvio-6.2' :
+        cpt = 0
+        output = open(output_filename,'w')
+        header = 'gene_callers_id'+'\t'+'contig'+'\t'+'start'+'\t'+'stop'+'\t'+'direction'+'\t'+'partial'+'\t'+'source'+'\t'+'version'+'\t'+'aa_sequence'
+        output.write(header+'\n')
+        for record in SeqIO.parse(protein_filename,'fasta') :
+            liste = record.description.split(' # ')
+            orf = str(cpt)
+            cpt += 1
+            scaffold = '_'.join(liste[0].split('_')[0:-1])
+            if scaffold not in contigList :
+                continue
 
-        start = str( int(liste[1]) - 1 )
-        end = str( int(liste[2]) - 1 )
-        if int( liste[-1].split(';')[1].replace('partial=','') ) == 0 :
-            partial = '0'
-        else:
-            partial = '1'
+            start = str( int(liste[1]) - 1 )
+            end = str( int(liste[2]) - 1 )
+            if int( liste[-1].split(';')[1].replace('partial=','') ) == 0 :
+                partial = '0'
+            else:
+                partial = '1'
 
-        if liste[3] == '1' :
-            strand = 'f'
-        else:
-            strand = 'r'
-        line = orf+'\t'+scaffold+'\t'+start+'\t'+end+'\t'+strand+'\t'+partial+'\t'+'prodigal'+'\t'+'2.6.3'+'\t'+str(record.seq)
-        output.write(line+'\n')
-    output.close()
+            if liste[3] == '1' :
+                strand = 'f'
+            else:
+                strand = 'r'
+            line = orf+'\t'+scaffold+'\t'+start+'\t'+end+'\t'+strand+'\t'+partial+'\t'+'prodigal'+'\t'+'2.6.3'+'\t'+str(record.seq)
+            output.write(line+'\n')
+        output.close()
+    else: #version 7 and more
+        cpt = 0
+        output = open(output_filename,'w')
+        header = 'gene_callers_id'+'\t'+'contig'+'\t'+'start'+'\t'+'stop'+'\t'+'direction'+'\t'+'partial'+'\t'+'call_type'+'\t'+'source'+'\t'+'version'+'\t'+'aa_sequence'
+        output.write(header+'\n')
+        for record in SeqIO.parse(protein_filename,'fasta') :
+            liste = record.description.split(' # ')
+            orf = str(cpt)
+            cpt += 1
+            scaffold = '_'.join(liste[0].split('_')[0:-1])
+            if scaffold not in contigList :
+                continue
+
+            start = str( int(liste[1]) - 1 )
+            end = str( int(liste[2]) - 1 )
+            if int( liste[-1].split(';')[1].replace('partial=','') ) == 0 :
+                partial = '0'
+            else:
+                partial = '1'
+
+            if liste[3] == '1' :
+                strand = 'f'
+            else:
+                strand = 'r'
+            line = orf+'\t'+scaffold+'\t'+start+'\t'+end+'\t'+strand+'\t'+partial+'\t'+'1'+'\t'+'prodigal'+'\t'+'2.6.3'+'\t'+str(record.seq)
+            output.write(line+'\n')
+        output.close()
 
 
 def parsingEukRep(euk_filename,prok_filename,contig2split) :
@@ -388,11 +416,15 @@ if __name__ == "__main__":
         sys.exit(args.sampleType+' sample type does not exist (sc or meta)')
 
 
-    if args.anvioVersion == 'anvio-6.2' or args.sampleType == 'anvio-7.1' :
+    if args.anvioVersion == 'anvio-6.2' or args.anvioVersion == 'anvio-7.1' :
         anvioVersion = args.anvioVersion
     else:
         sys.exit(args.anvioVersion+' anvi\'o version does not exist (anvio-6.2 or anvio-7.1)')
 
+    if anvioVersion == 'anvio-7.1' :
+        metagenomics_env = 'metagenomics-v2'
+    else:
+        metagenomics_env = 'metagenomics-v1'
 
     right = 0o0666
 
@@ -491,7 +523,7 @@ if __name__ == "__main__":
         if os.path.exists(megahit_contig_filename) and os.path.exists(cwd+'/'+'megahit'+'/'+'done') :
             print(megahit_contig_filename+' already exists and looks good, keep it')        
         else:
-            megahit(fastq1_filename, fastq2_filename, cwd,str(cpu))
+            megahit(fastq1_filename, fastq2_filename, cwd,str(cpu),metagenomics_env)
         print('\n')
         print('done')
 
@@ -504,7 +536,7 @@ if __name__ == "__main__":
         if os.path.exists(spades_contig_filename) and os.path.exists(cwd+'/'+'spades'+'/'+'done') :
             print(spades_contig_filename+' already exists and looks good, keep it')
         else:
-            hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) , sampleType )
+            hybridAssembly( nanopore_filename , fastq1_filename , fastq2_filename , cwd , str(cpu) , sampleType , metagenomics_env)
         print('\n')
         print('done')
 
@@ -574,14 +606,14 @@ if __name__ == "__main__":
         os.mkdir(cwd+'/'+'bt2')
 
         print(bam_filename)
-        cmd = 'source activate metagenomics-v1 && bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
+        cmd = 'source activate '+metagenomics_env+' && bowtie2-build --threads '+str(cpu)+' '+renamed_contig_filename+' '+cwd+'/'+'bt2'+'/'+basename
         print(cmd)
         status = os.system(cmd)
         print(status)
         if not status == 0:
             sys.exit('something went wrong with bowtie2-build, exit')
 
-        cmd = 'source activate metagenomics-v1 && bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb'+' | '+'samtools sort -@ '+str(cpu)+' -o '+bam_filename
+        cmd = 'source activate '+metagenomics_env+' && bowtie2 -p '+str(cpu)+' -X 1000 -x '+cwd+'/'+'bt2'+'/'+basename+' -1 '+fastq1_filename+' -2 '+fastq2_filename +' | '+'samtools view -Sb'+' | '+'samtools sort -@ '+str(cpu)+' -o '+bam_filename
         print(cmd)
         status = os.system(cmd)
         print(status)
@@ -589,7 +621,7 @@ if __name__ == "__main__":
             sys.exit('something went wrong with bowtie2, exit')
 
         # creating the index file
-        cmd = 'source activate metagenomics-v1 && samtools index '+bam_filename
+        cmd = 'source activate '+metagenomics_env+' && samtools index '+bam_filename
         print(cmd)
         status = os.system(cmd)
         print('status: '+str(status)+'\n')
@@ -610,7 +642,7 @@ if __name__ == "__main__":
     json_data['assembly_protein_filename'] = protein_filename
     json_data['assembly_gene_filename'] = gene_filename
 
-    cmd = 'source activate metagenomics-v1 && prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
+    cmd = 'source activate '+metagenomics_env+' && prodigal -i '+renamed_contig_filename+' -a '+protein_filename+' -d '+gene_filename+' -m -p meta >/dev/null 2>/dev/null'
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -636,7 +668,7 @@ if __name__ == "__main__":
     print('\trunning EukRep...')
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
-    cmd = 'source activate metagenomics-v1 && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
+    cmd = 'source activate '+metagenomics_env+' && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
@@ -664,7 +696,7 @@ if __name__ == "__main__":
             shutil.rmtree(cwd+'/'+'taxonomy')
         os.mkdir(cwd+'/'+'taxonomy')
 
-        eukContigSet = removingEukContigs(contig_filename,gene_filename,eukrep_euk_filename)
+        eukContigSet = removingEukContigs(contig_filename,gene_filename,eukrep_euk_filename,metagenomics_env)
         print('\tDone')
     else:
         eukContigSet = set()
@@ -739,7 +771,7 @@ if __name__ == "__main__":
         fake_bam_filename =  cwd+'/'+'bt2'+'/'+basename+'.min'+str(length)+'.sorted.fake.bam'
 
 
-    extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu)
+    extractingBam(bam_filename,contig_filename,final_bam_filename,fake_bam_filename,cpu,metagenomics_env)
     print('done')
 
     bam2name = dict()
@@ -756,7 +788,7 @@ if __name__ == "__main__":
     print('\n')
     print('Creating the protein file for ANVIO...')
     protein_anvio_filename = cwd+'/'+'proteins.anvio.tab'
-    parsingProdigal(protein_filename,protein_anvio_filename,contig_filename) #only on the k contigs
+    parsingProdigal(protein_filename,protein_anvio_filename,contig_filename,anvioVersion) #only on the k contigs
     print('done')
 
     json_data['anvio_protein_filename'] = protein_anvio_filename
@@ -863,14 +895,14 @@ if __name__ == "__main__":
     if not status == 0:
         sys.exit('something went wrong with anvi-get-sequences-for-gene-calls, exit')
 
-    cmd = 'source activate metagenomics-v1 && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
+    cmd = 'source activate '+metagenomics_env+' && kaiju -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -f /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/kaiju_db_nr_euk.fmi -i '+gene_call_filename+' -o '+kaiju_filename+' -z '+str(cpu)+' -v'
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
     if not status == 0:
         sys.exit('something went wrong with kaiju, exit')
 
-    cmd = 'source activate metagenomics-v1 && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,class,order,family,genus,species'+' -v'
+    cmd = 'source activate '+metagenomics_env+' && kaiju-addTaxonNames -t /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/nodes.dmp -n /env/ig/biobank/by-soft/kaiju/1.7.3/i20200525/names.dmp -i '+kaiju_filename+' -o '+kaijuTaxon_filename+' -r superkingdom,phylum,class,order,family,genus,species'+' -v'
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
