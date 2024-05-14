@@ -73,7 +73,7 @@ def create_connection(db_file):
     """
     conn = None
     try:
-        conn = sqlite3.connect(db_file , check_same_thread=True)
+        conn = sqlite3.connect(db_file , check_same_thread=True,timeout=30)
         return conn
     except Error as e:
         print(e)
@@ -490,7 +490,7 @@ print('Callback...')
 def populate_datatable(n_clicks_update,n_clicks_add,n_clicks_delete,anvio_id,updated_bin_name,new_bin_name,delete_anvio_id):
     print('\n\npopulate datatable (TAB1)')
     print('connecting to the sqlite db done...')
-    conn = sqlite3.connect(db_filename , check_same_thread=True)
+    conn = sqlite3.connect(db_filename , check_same_thread=True,timeout=30)
 
     update_msg = ''
     add_msg = ''
@@ -614,7 +614,7 @@ def populate_datatable(n_clicks_update,n_clicks_add,n_clicks_delete,anvio_id,upd
 def suggestedBinName(dd_value):
     print('\n\nSuggested Bin Name (TAB1)')
     if dd_value != None :
-        conn = sqlite3.connect(db_filename , check_same_thread=True)
+        conn = sqlite3.connect(db_filename , check_same_thread=True,timeout=30)
         query = 'SELECT anvio_id , anvio_taxonomy , gtdb_taxonomy , anvio_bin FROM bins'
         df = pd.read_sql_query(query, con=conn)
         print(df['anvio_bin'])
@@ -653,7 +653,7 @@ def suggestedBinName(dd_value):
 
 def populate_delete_dropdown(dataset):
     print('\n\npopulate delete dropdown (TAB1)')
-    conn = sqlite3.connect(db_filename , check_same_thread=True)
+    conn = sqlite3.connect(db_filename , check_same_thread=True,timeout=30)
     query = 'SELECT anvio_id FROM bins WHERE anvio_bin = 0'
     print(query)
     df = pd.read_sql_query(query, con=conn)
@@ -708,7 +708,7 @@ def populate_datatable(binList , n_clicks_update, n_clicks_delete, n_clicks_sele
     print('\n\npopulate scaffold datatable (TAB2)')
     print('connecting to the sqlite db done...')
 
-    conn = sqlite3.connect(db_filename , check_same_thread=True)
+    conn = sqlite3.connect(db_filename , check_same_thread=True,timeout=30)
 
     input_triggered = dash.callback_context.triggered[0]["prop_id"].split(".")[0]
     print(input_triggered)
@@ -776,7 +776,10 @@ def populate_datatable(binList , n_clicks_update, n_clicks_delete, n_clicks_sele
                 
 
     print('displaying the datatable....')
-    query = 'SELECT scaffold_id , anvio_id , anvio_updated_id , refineM_outlier , refineM_length , refineM_gc , anvio_coverage , refineM_coverage , anvio_taxonomy , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family , refineM_genus , refineM_species FROM scaffolds WHERE anvio_updated_id IN ( \''+'\' , \''.join(binList)+'\' )'
+    if len(binList) > 8 :
+        query = 'SELECT scaffold_id , anvio_id , anvio_updated_id , refineM_outlier , refineM_length , refineM_gc , anvio_coverage , refineM_coverage , anvio_taxonomy , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family , refineM_genus , refineM_species FROM scaffolds WHERE anvio_updated_id IN ( \''+'\' , \''.join(binList[:7])+'\' )'
+    else:
+        query = 'SELECT scaffold_id , anvio_id , anvio_updated_id , refineM_outlier , refineM_length , refineM_gc , anvio_coverage , refineM_coverage , anvio_taxonomy , refineM_domain , refineM_phylum , refineM_class , refineM_order , refineM_family , refineM_genus , refineM_species FROM scaffolds WHERE anvio_updated_id IN ( \''+'\' , \''.join(binList)+'\' )'
     df = pd.read_sql_query(query, con=conn)
 
 
@@ -837,7 +840,7 @@ def display_graph(legendValue,dataset) :
 #     if binList == None :
 #         return ['please, select a bin']
 #     else:
-#         conn = sqlite3.connect(db_filename , check_same_thread=True)
+#         conn = sqlite3.connect(db_filename , check_same_thread=True,timeout=30)
 #         print('update '+db_filename+' with a new scaffold assignements')
 #         for scaffold_id in scaffoldList :
 #             sql_update_query = """Update scaffolds set anvio_updated_id = ? where scaffold_id = ?"""

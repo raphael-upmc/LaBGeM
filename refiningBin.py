@@ -611,6 +611,11 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             except:
                 feature = 'Na'
             bin2anvio_summary[binName][header] = feature
+
+        if 'anvio_version' in json_data :
+            if json_data['anvio_version'] == 'anvio-7.1' :
+                bin2anvio_summary[binName]['Anvio_taxon'] = ';'.join(liste[7:])
+
         print(bin2anvio_summary[binName])
     file.close()
 
@@ -972,7 +977,16 @@ def writingOutputProkaryote(json_data, refiningBins_directory , anvio_scaffold2i
             header = 'Anvio_'+headerList[i].replace(' ','_')
             feature = liste[i]
             bin2anvio_summary[binName][header] = feature
+
+        if 'anvio_version' in json_data :
+            if json_data['anvio_version'] == 'anvio-7.1' :
+                bin2anvio_summary[binName]['Anvio_taxon'] = ';'.join(liste[7:])
+                
     file.close()
+
+
+        
+        
 
     anvio_genome_coverage_filename = refiningBins_directory+'/ANVIO/SAMPLES-SUMMARY/bins_across_samples/mean_coverage.txt'
     file = open(anvio_genome_coverage_filename,'r')
@@ -1274,8 +1288,8 @@ if __name__ == "__main__":
     basic_info_contigs_filename = data['anvio_basic_info_contigs_filename']
     gene_taxo_anvio_filename = data['anvio_gene_taxo_anvio_filename']
     taxo_anvio_filename = data['anvio_taxo_filename']
-    if anvio_version in json_data :
-        anvioVersion = json_data['anvio_version']
+    if 'anvio_version' in data :
+        anvioVersion = data['anvio_version']
     else :
         anvioVersion = 'anvio-6.2'
 

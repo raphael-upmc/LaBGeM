@@ -10,6 +10,9 @@ import shutil
 
 
 
+#def binning() # https://merenlab.org/2016/06/22/anvio-tutorial-v2/#anvi-import-collection
+
+
 def megahit(fastq1_filename, fastq2_filename, output_directory,cpu,metagenomics_env) :
     if os.path.exists(cwd+'/'+'megahit') :
         shutil.rmtree(cwd+'/'+'megahit')
@@ -251,7 +254,7 @@ def parsingProdigal(protein_filename,output_filename,contig_filename,anvioVersio
         contigList.add(record.id)
 
 
-    if contigVersion == 'anvio-6.2' :
+    if anvioVersion == 'anvio-6.2' :
         cpt = 0
         output = open(output_filename,'w')
         header = 'gene_callers_id'+'\t'+'contig'+'\t'+'start'+'\t'+'stop'+'\t'+'direction'+'\t'+'partial'+'\t'+'source'+'\t'+'version'+'\t'+'aa_sequence'
@@ -292,7 +295,7 @@ def parsingProdigal(protein_filename,output_filename,contig_filename,anvioVersio
                 continue
 
             start = str( int(liste[1]) - 1 )
-            end = str( int(liste[2]) - 1 )
+            end = str( int(liste[2]) )
             if int( liste[-1].split(';')[1].replace('partial=','') ) == 0 :
                 partial = '0'
             else:
@@ -363,7 +366,7 @@ if __name__ == "__main__":
     parser.add_argument('-k',type=int,default=25000,help='number of contigs to keep for ANVIO (default: 25000)')
     parser.add_argument('-remove-euk',action='store_true',default=False,help='remove the contigs assigned to euk by both kaiju and EukRep')
     parser.add_argument('-sampleType', help='the sample type: single cell (sc) or metagenome (meta) (default=meta)', default='meta')
-    parser.add_argument('-anvioVersion', help='the anvi\'o version: anvio-6.2 or anvio-7.1 (default=anvio-7.1)', default='anvio-7.1')
+    parser.add_argument('-anvioVersion', help='the anvi\'o version: anvio-6.2 or anvio-7.1 or anvio-8 (default=anvio-8)', default='anvio-8')
     args = parser.parse_args()
 
     # checking arguments
@@ -416,10 +419,10 @@ if __name__ == "__main__":
         sys.exit(args.sampleType+' sample type does not exist (sc or meta)')
 
 
-    if args.anvioVersion == 'anvio-6.2' or args.anvioVersion == 'anvio-7.1' :
+    if args.anvioVersion == 'anvio-6.2' or args.anvioVersion == 'anvio-7.1' or args.anvioVersion == 'anvio-8' :
         anvioVersion = args.anvioVersion
     else:
-        sys.exit(args.anvioVersion+' anvi\'o version does not exist (anvio-6.2 or anvio-7.1)')
+        sys.exit(args.anvioVersion+' anvi\'o version does not exist (anvio-6.2 or anvio-7.1 or anvio-8)')
 
     if anvioVersion == 'anvio-7.1' :
         metagenomics_env = 'metagenomics-v2'
@@ -668,7 +671,7 @@ if __name__ == "__main__":
     print('\trunning EukRep...')
     eukrep_prok_filename = cwd+'/'+'annotations'+'/'+'eukrepProk.txt'
     eukrep_euk_filename = cwd+'/'+'annotations'+'/'+'eukrepEuk.txt'
-    cmd = 'source activate '+metagenomics_env+' && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
+    cmd = 'source activate '+'eukrep-env'+' && EukRep -i '+renamed_contig_filename+' -o '+eukrep_euk_filename+' --prokarya '+eukrep_prok_filename+' --seq_names -m strict --tie skip' 
     print(cmd)
     status = os.system(cmd)
     print('status :'+str(status))
@@ -815,7 +818,7 @@ if __name__ == "__main__":
         os.remove(contig_db_filename)
 
     json_data['anvio_contigDb_filename'] = contig_db_filename
-    cmd = 'source activate '+anvioVersion+' && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename
+    cmd = 'source activate '+anvioVersion+' && anvi-gen-contigs-database -f '+contig_filename+' -o '+contig_db_filename+' -n '+'\'The contigs database\''+' --external-gene-calls '+protein_anvio_filename+' --ignore-internal-stop-codons'
     print(cmd)
     status = os.system(cmd)
     print(status)
@@ -851,16 +854,23 @@ if __name__ == "__main__":
 
     splitList = set()
     contig2split = defaultdict(set)
+
+    if anvioVersion == 'anvio-6.2' : # genes_in_splits.txt file changed in anvio version 7 
+        split_index = 1
+    else:
+        split_index = 0
+
     file = open(cwd+'/'+'annotations'+'/'+'genes_in_splits.txt','r')
     header = next(file)
     for line in file :
         line = line.rstrip()
         liste = line.split('\t')
-        split = liste[1]
+        split = liste[split_index]
         contig = '_'.join( split.split('_')[:-2] )
         splitList.add(split)
         contig2split[contig].add(split)
     file.close()
+
 
     contig2eukrep = parsingEukRep(eukrep_euk_filename,eukrep_prok_filename,contig2split)
 
@@ -1007,6 +1017,32 @@ if __name__ == "__main__":
     os.chmod(profile_filename, right )
     os.chmod(auxiliaryData_filename, right )
 
+    ##############################
+    # generating some statistics #
+    ##############################
+
+    cmd = 'source activate '+anvioVersion+' && anvi-display-contigs-stats '+contig_db_filename+' --report-as-text --output-file '+cwd+'/datatables/anvi-display-contigs-stats.txt'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-display-contigs-stats, exit')
+
+
+    cmd = 'source activate '+anvioVersion+' && anvi-run-scg-taxonomy -c '+contig_db_filename+' --num-parallel-processes '+str(cpu)+' --num-threads '+str(cpu)
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-run-scg-taxonomy, exit')
+    
+
+    cmd = 'source activate '+anvioVersion+' && anvi-estimate-scg-taxonomy -c '+contig_db_filename+' -p '+profile_filename+' --metagenome-mode --compute-scg-coverages --output-file '+cwd+'/datatables/anvi-estimate-scg-taxonomy.txt' #https://merenlab.org/2019/10/08/anvio-scg-taxonomy/#contigs-db--profile-db
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        sys.exit('something went wrong with anvi-estimate-scg-taxonomy, exit')
 
     #####################
     # anvio interactive #

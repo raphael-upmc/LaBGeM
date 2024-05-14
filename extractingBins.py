@@ -45,16 +45,17 @@ sample = data['sample']
 contig_filename = data['anvio_contig_filename']
 protein_filename = data['assembly_protein_filename']
 anvio_protein_filename = data['anvio_protein_filename']
+contig_db_filename = data['anvio_contigDb_filename']
+profile_db_filename= data['anvio_profileDb_filename']
 
 
 
-
-genomeDir = 'genomes'
+genomeDir = sample+'_'+'genomes'
 if os.path.exists(genomeDir) :
     sys.exit(genomeDir+' already exists, remove it first')
 os.mkdir(genomeDir)
 
-scaffold2coverage_filename = 'scaffold2coverage.info'
+scaffold2coverage_filename = sample+'_'+'scaffold2coverage.info'
 if os.path.exists(scaffold2coverage_filename) :
     sys.exit(scaffold2coverage_filename+' already exists, remove it first')
 
@@ -115,3 +116,16 @@ outputScaffold.close()
 
 
 
+scaffold2bin_filename = sample+'_'+'scaffold2bin.txt'
+if os.path.exists(scaffold2bin_filename) :
+    sys.exit(scaffold2bin_filename+' already exists, remove it first')
+
+
+output = open(scaffold2bin_filename,'w')
+for scaffold,binName in scaffold2bin.items() :
+    genome = bin2name[ binName ]
+    output.write(scaffold+'\t'+genome+'\n')
+output.close()
+
+cmd = 'anvi-import-collection '+scaffold2bin_filename+' -c '+contig_db_filename+' -p '+profile_db_filename+' -C curated --contigs-mode'
+print(cmd)
