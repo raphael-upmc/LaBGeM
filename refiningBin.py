@@ -613,7 +613,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
             bin2anvio_summary[binName][header] = feature
 
         if 'anvio_version' in json_data :
-            if json_data['anvio_version'] == 'anvio-7.1' :
+            if json_data['anvio_version'] == 'anvio-7.1' or json_data['anvio_version'] == 'anvio-8' :
                 bin2anvio_summary[binName]['Anvio_taxon'] = ';'.join(liste[7:])
 
         print(bin2anvio_summary[binName])
@@ -653,7 +653,7 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     bin2gtdb = dict()
     gtdb_arc_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.ar122.summary.tsv'
     gtdb_bac_filename = refiningBins_directory+'/GTDB-tk/output/gtdbtk.bac120.summary.tsv'
-
+    gtdb_headerList = None
     for filename in [gtdb_bac_filename,gtdb_arc_filename] :
 #        print(filename)
         if not os.path.exists(filename) :
@@ -721,18 +721,22 @@ def writingOutput(json_data, refiningBins_directory , anvio_scaffold2info, anvio
     output.close()
 
     # GTDB
-    print(gtdb_headerList)
-    output = open(output_dir+'/'+'GTDBtk.tsv','w')
-    output.write( 'Bin'+'\t'+'\t'.join(gtdb_headerList)+'\n' )
-    for binName,key2feature in bin2gtdb.items() :
-        output.write(binName)
-        for header in gtdb_headerList :
-            if header in bin2gtdb[binName] :
-                output.write('\t'+bin2gtdb[binName][header])
-            else:
-                output.write('\t'+'Na')                                
-        output.write('\n')
-    output.close()
+    if gtdb_headerList is not None :
+        print(gtdb_headerList)
+        output = open(output_dir+'/'+'GTDBtk.tsv','w')
+        output.write( 'Bin'+'\t'+'\t'.join(gtdb_headerList)+'\n' )
+        for binName,key2feature in bin2gtdb.items() :
+            output.write(binName)
+            for header in gtdb_headerList :
+                if header in bin2gtdb[binName] :
+                    output.write('\t'+bin2gtdb[binName][header])
+                else:
+                    output.write('\t'+'Na')                                
+            output.write('\n')
+        output.close()
+    else:
+        output = open(output_dir+'/'+'GTDBtk.tsv','w')
+        output.close()
 
     # Collection
     output = open(output_dir+'/'+'Sample_summary.tsv','w')
@@ -979,7 +983,7 @@ def writingOutputProkaryote(json_data, refiningBins_directory , anvio_scaffold2i
             bin2anvio_summary[binName][header] = feature
 
         if 'anvio_version' in json_data :
-            if json_data['anvio_version'] == 'anvio-7.1' :
+            if json_data['anvio_version'] == 'anvio-7.1' or json_data['anvio_version'] == 'anvio-8' :
                 bin2anvio_summary[binName]['Anvio_taxon'] = ';'.join(liste[7:])
                 
     file.close()

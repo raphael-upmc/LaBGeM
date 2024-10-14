@@ -27,8 +27,6 @@ def megahit(fastq1_filename, fastq2_filename, output_directory,cpu,metagenomics_
     # creating a link to contigs.fa
     os.symlink(output_directory+'/'+'megahit'+'/'+'megahit.contigs.fa', output_directory+'/'+'contigs.fa')
 
-
-
 def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_directory,cpu,sampleType,metagenomics_env):
     if os.path.exists(cwd+'/'+'spades') :
         shutil.rmtree(cwd+'/'+'spades')
@@ -48,6 +46,24 @@ def hybridAssembly(nanopore_filename,fastq1_filename, fastq2_filename, output_di
     # creating a link to contigs.fa
     os.symlink(output_directory+'/'+'spades'+'/'+'contigs.fasta', output_directory+'/'+'contigs.fa')
 
+def scSpadesAssembly(fastq1_filename, fastq2_filename, output_directory,cpu,sampleType,metagenomics_env):
+    if os.path.exists(cwd+'/'+'spades') :
+        shutil.rmtree(cwd+'/'+'spades')
+    os.mkdir(cwd+'/'+'spades')
+
+    cmd = 'source activate '+metagenomics_env+' && spades.py -m 999 -k auto -t '+str(cpu)+' -1 '+fastq1_filename+' -2 '+fastq2_filename+' --'+sampleType+' -o '+output_directory+'/'+'spades >'+output_directory+'/../spades.log'
+    print(cmd)
+    status = os.system(cmd)
+    print(status)
+
+    if not status == 0 :
+        sys.exit('something went wrong with spades, exit.')
+
+    output = open(output_directory+'/'+'spades'+'/'+'done','w')
+    output.close()
+
+    # creating a link to contigs.fa
+    os.symlink(output_directory+'/'+'spades'+'/'+'contigs.fasta', output_directory+'/'+'contigs.fa')
 
 
 
@@ -424,7 +440,7 @@ if __name__ == "__main__":
     else:
         sys.exit(args.anvioVersion+' anvi\'o version does not exist (anvio-6.2 or anvio-7.1 or anvio-8)')
 
-    if anvioVersion == 'anvio-7.1' :
+    if anvioVersion == 'anvio-7.1' or anvioVersion == 'anvio-8' :
         metagenomics_env = 'metagenomics-v2'
     else:
         metagenomics_env = 'metagenomics-v1'
@@ -518,20 +534,30 @@ if __name__ == "__main__":
     ############
 
     if args.nanopore == None :
-
-        print('\n')
-        print('Performing the assembly using  Megahit...') # megahit will create a directory named assembly
-        megahit_contig_filename = cwd+'/'+'megahit'+'/'+'megahit.contigs.fa'
-        json_data['assembly_directory'] = cwd+'/'+'megahit'
-        if os.path.exists(megahit_contig_filename) and os.path.exists(cwd+'/'+'megahit'+'/'+'done') :
-            print(megahit_contig_filename+' already exists and looks good, keep it')        
-        else:
-            megahit(fastq1_filename, fastq2_filename, cwd,str(cpu),metagenomics_env)
-        print('\n')
-        print('done')
-
+        if sampleType == 'meta' :
+            print('\n')
+            print('Performing the assembly using  Megahit...') # megahit will create a directory named assembly
+            megahit_contig_filename = cwd+'/'+'megahit'+'/'+'megahit.contigs.fa'
+            json_data['assembly_directory'] = cwd+'/'+'megahit'
+            if os.path.exists(megahit_contig_filename) and os.path.exists(cwd+'/'+'megahit'+'/'+'done') :
+                print(megahit_contig_filename+' already exists and looks good, keep it')        
+            else:
+                megahit(fastq1_filename, fastq2_filename, cwd,str(cpu),metagenomics_env)
+            print('\n')
+            print('done')
+        elif sampleType == 'sc' :
+            print('\n')
+            print('Performing the sc assembly using  spade on illumina reads...') # megahit will create a directory named assembly
+            spades_contig_filename = cwd+'/'+'spades'+'/'+'contigs.fasta'
+            json_data['assembly_directory'] = cwd+'/'+'spades'
+            if os.path.exists(spades_contig_filename) and os.path.exists(cwd+'/'+'spades'+'/'+'done') :
+                print(spades_contig_filename+' already exists and looks good, keep it')
+            else:
+                scSpadesAssembly( fastq1_filename , fastq2_filename , cwd , str(cpu) , sampleType , metagenomics_env)
+            print('\n')
+            print('done')
     else:
-
+        print(args.nanopore)
         print('\n')
         print('Performing the hybrid assembly using  Spades...') # spade will create a directory named assembly
         spades_contig_filename = cwd+'/'+'spades'+'/'+'contigs.fasta'
@@ -1043,6 +1069,16 @@ if __name__ == "__main__":
     print('status: '+str(status))
     if not status == 0:
         sys.exit('something went wrong with anvi-estimate-scg-taxonomy, exit')
+
+    cmd = 'source activate '+anvioVersion+' && anvi-get-sequences-for-hmm-hits -c '+contig_db_filename+' --hmm-source Ribosomal_RNA_16S --output-file '+cwd+'/datatables/Ribosomal_RNA_16S.fa'
+    print(cmd)
+    status = os.system(cmd)
+    print('status: '+str(status))
+    if not status == 0:
+        print('something went wrong with anvi-get-sequences-for-hmm-hits, very likely no 16S have been detected')
+
+
+
 
     #####################
     # anvio interactive #
